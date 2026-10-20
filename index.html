@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Falling Sand</title>
+<meta name="description" content="A falling-sand toy. Pour sand, water, oil, fire, lava, ice and seeds, and see what they make.">
+<meta name="theme-color" content="#0b0d12">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<style>
+  :root {
+    --bg: #0b0d12;
+    --nav-bg: #10131a;
+    --panel: #141821;
+    --line: #262b38;
+    --text: #d9dce4;
+    --muted: #7d8496;
+    --faint: #4d5363;
+    --focus: #e9c46a;
+    --nav: 236px;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; background: var(--bg); color: var(--text); }
+  html { overflow: hidden; }
+  @media (max-width: 639px), (max-height: 479px) { html { overflow: auto; } }
+  body {
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
+  }
+
+  .app {
+    width: 100vw; height: 100vh; min-width: 640px; min-height: 480px;
+    display: grid; grid-template-columns: var(--nav) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
+  }
+  .app.is-collapsed { --nav: 60px; }
+
+  nav {
+    display: flex; flex-direction: column; gap: 18px; padding: 12px;
+    overflow-y: auto; overscroll-behavior: contain;
+    background: var(--nav-bg); border-right: 1px solid var(--line);
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  .nav-head { display: flex; align-items: center; gap: 8px; }
+  .nav-head h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 600; }
+  #collapse { padding: 3px 9px; font-size: 15px; line-height: 1; }
+  h2 {
+    margin: 0 0 6px; display: flex; justify-content: space-between;
+    font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
+  }
+  .find { position: relative; display: block; }
+  .find input {
+    width: 100%; font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 6px 28px 6px 9px;
+  }
+  .find input:focus { outline: none; border-color: var(--focus); }
+  .find input:not(:placeholder-shown) + kbd { display: none; }
+  .find kbd { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .nomatch { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
+
+  .list { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
+  button {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px;
+    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
+    touch-action: manipulation; text-align: left;
+  }
+  button:hover { border-color: #3a4152; }
+  button[aria-pressed="true"] { border-color: var(--focus); }
+  .list > * { width: 100%; }
+  .list li { display: flex; align-items: center; gap: 9px; padding: 5px 11px; }
+  .label { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .label small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+  kbd { font: 11px ui-monospace, monospace; color: var(--muted); }
+  .sw { flex: none; width: 14px; height: 14px; border-radius: 3px; }
+  .sw.erase { background: repeating-linear-gradient(45deg, #555 0 2px, transparent 2px 4px); outline: 1px solid #555; }
+
+  .brush { display: flex; align-items: center; gap: 10px; }
+  .brush input { flex: 1; min-width: 0; accent-color: var(--focus); }
+  .brush b { min-width: 2ch; text-align: right; font-weight: 500; }
+
+  #found li.locked { color: var(--faint); }
+  #found li.locked .sw { outline: 1px dashed var(--faint); }
+  #found li .name-hint, #found li .how-hint { display: none; }
+  #found li.is-hinted .name-hint, #found li.is-hinted .how-hint { display: inline; }
+  #found li.is-hinted :is(.name-q, .how-q) { display: none; }
+  #found li.new { animation: found 1.6s ease-out; border-radius: 6px; }
+  @keyframes found { from { background: #e9c46a33; } to { background: transparent; } }
+  #found-count.is-complete { color: var(--focus); }
+
+  .help { color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
+  footer { margin-top: auto; color: var(--faint); font-size: 11.5px; }
+
+  .is-collapsed nav { padding: 12px 8px; }
+  .is-collapsed :is(.nav-head h1, .find, .nomatch, h2, .label, nav kbd, footer) { display: none; }
+  .is-collapsed .group:not(.materials) { display: none; }
+  .is-collapsed .nav-head { justify-content: center; }
+  .is-collapsed .list button { justify-content: center; padding: 9px 0; }
+
+  .stage {
+    position: relative; margin: 12px; min-width: 0; min-height: 0;
+    display: grid; place-items: center; overflow: hidden;
+  }
+  canvas {
+    display: block; border-radius: 8px; outline: 1px solid var(--line); background: #0d0f14;
+    image-rendering: pixelated; touch-action: none; cursor: none; -webkit-touch-callout: none;
+  }
+  .hud, .toast {
+    position: absolute; pointer-events: none; font-size: 12px;
+    background: rgba(16, 19, 26, 0.82); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px;
+  }
+  .hud { left: 8px; bottom: 8px; color: var(--muted); display: flex; gap: 12px; }
+  .hud b { color: var(--text); font-weight: 500; }
+  .hud #state:empty { display: none; }
+  .toast {
+    top: 10px; left: 50%; font-size: 13px; padding: 5px 12px;
+    opacity: 0; transform: translate(-50%, -6px); transition: opacity 0.25s, transform 0.25s;
+  }
+  .toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+
+  .touch-only { display: none; }
+  @media (hover: none) and (pointer: coarse) {
+    button { min-height: 40px; }
+    kbd, .fine-only { display: none; }
+    .touch-only { display: block; }
+    .find input { padding-right: 9px; }
+    .brush input { height: 28px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav id="nav" aria-label="Tools">
+    <div class="nav-head">
+      <h1>Falling Sand</h1>
+      <button id="collapse" aria-controls="nav" aria-expanded="true">«</button>
+    </div>
+    <label class="find">
+      <input id="search" type="search" placeholder="search" aria-label="Search the panel" autocomplete="off" spellcheck="false">
+      <kbd class="fine-only">/</kbd>
+    </label>
+    <p class="nomatch" id="nomatch" hidden>nothing matches</p>
+
+    <!-- The buttons are in the HTML, not built by the script: the stage has to
+         have its final size when the grid is measured. -->
+    <section class="group materials">
+      <h2>materials</h2>
+      <div class="list" id="tools">
+        <button data-mat="sand" data-find><span class="sw"></span><span class="label">sand <small>powder, sinks in liquid</small></span><kbd>1</kbd></button>
+        <button data-mat="water" data-find><span class="sw"></span><span class="label">water <small>douses fire, quenches lava</small></span><kbd>2</kbd></button>
+        <button data-mat="oil" data-find><span class="sw"></span><span class="label">oil <small>floats on water, burns slow</small></span><kbd>3</kbd></button>
+        <button data-mat="fire" data-find><span class="sw"></span><span class="label">fire <small>burns fuel, throws embers</small></span><kbd>4</kbd></button>
+        <button data-mat="plant" data-find><span class="sw"></span><span class="label">plant <small>drinks water and grows</small></span><kbd>5</kbd></button>
+        <button data-mat="seed" data-find><span class="sw"></span><span class="label">seed <small>sprouts on wet sand</small></span><kbd>6</kbd></button>
+        <button data-mat="stone" data-find><span class="sw"></span><span class="label">stone <small>stays put</small></span><kbd>7</kbd></button>
+        <button data-mat="lava" data-find><span class="sw"></span><span class="label">lava <small>lights fuel, melts sand</small></span><kbd>8</kbd></button>
+        <button data-mat="ice" data-find><span class="sw"></span><span class="label">ice <small>freezes water, fears heat</small></span><kbd>9</kbd></button>
+        <button data-mat="empty" data-find="erase empty rub out 0"><span class="sw erase"></span><span class="label">erase <small>rub things out</small></span><kbd>0</kbd></button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>brush</h2>
+      <label class="brush" data-find="brush size"><input id="brush" type="range" min="0" max="30" aria-label="brush size"><b id="size"></b></label>
+    </section>
+
+    <section class="group">
+      <h2>world</h2>
+      <div class="list">
+        <button id="pause" data-find="pause play space"><span class="label">pause</span><kbd>space</kbd></button>
+        <button id="scene" data-find="scene reset r"><span class="label">scene</span><kbd>r</kbd></button>
+        <button id="clear" data-find="clear empty c"><span class="label">clear</span><kbd>c</kbd></button>
+      </div>
+    </section>
+
+    <section class="group">
+      <h2>discoveries <span id="found-count"></span></h2>
+      <ul class="list" id="found"></ul>
+    </section>
+
+    <section class="group help">
+      <span class="fine-only">drag to pour · right-drag to erase</span>
+      <span class="fine-only">scroll or [ ] for brush size</span>
+      <span class="fine-only">/ to search · n to fold this panel</span>
+      <span class="touch-only">drag to pour · pour with several fingers at once · pick erase to rub out</span>
+    </section>
+
+    <footer>Made by Claude in October 2026, in a thread given over just for fun.</footer>
+  </nav>
+
+  <div class="stage">
+    <canvas id="c"></canvas>
+    <div class="hud"><span>under brush: <b id="under">—</b></span><span id="state"></span></div>
+    <div class="toast" id="toast" role="status"></div>
+  </div>
+</div>
+<script>
+// --- grid ------------------------------------------------------------------
+
+const appEl = document.querySelector('.app');
+const stageEl = document.querySelector('.stage');
+
+// The panel's saved state goes on before the stage is measured, so the grid
+// takes the shape of the stage the player actually sees.
+const NAV_KEY = 'sand.nav';
+try { appEl.classList.toggle('is-collapsed', localStorage.getItem(NAV_KEY) === 'collapsed'); } catch {}
+
+// The grid takes the shape of the stage it loads in. Cells are about 3 px or
+// more, up to 54,000 of them.
+const box = stageEl.getBoundingClientRect();
+const hasBox = box.width > 0 && box.height > 0;
+const aspect = hasBox ? Math.min(3.2, Math.max(0.45, box.width / box.height)) : 5 / 3;
+const CELLS = hasBox ? Math.min(54000, Math.max(20000, Math.round((box.width * box.height) / 9))) : 54000;
+const W = Math.round(Math.sqrt(CELLS * aspect)), H = Math.round(CELLS / W), N = W * H;
+const cv = document.getElementById('c');
+cv.width = W; cv.height = H;
+const ctx = cv.getContext('2d');
+const img = ctx.createImageData(W, H);
+const buf = new Uint32Array(img.data.buffer);
+
+const type = new Uint8Array(N);
+const life = new Uint8Array(N);
+const clock = new Uint8Array(N);
+const col = new Uint32Array(N);
+const vel = new Int8Array(N); // ember heading: -1 left, 1 right
+
+// --- materials -------------------------------------------------------------
+
+const E = 0, STONE = 1, SAND = 2, WATER = 3, OIL = 4, FIRE = 5, PLANT = 6, SMOKE = 7, STEAM = 8, LAVA = 9,
+  GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16;
+
+// `how` is the recipe a discovery shows once it has been made.
+const MAT = [
+  { name: 'empty', dens: 1, colors: ['#0d0f14'] },
+  { name: 'stone', dens: 9, colors: ['#5b5e66', '#63666f', '#55585f', '#6a6d75'] },
+  { name: 'sand',  dens: 5, colors: ['#e2c27d', '#d8b56b', '#eccd8a', '#cfa95e'] },
+  { name: 'water', dens: 3, colors: ['#2f6fd6', '#3477e0', '#2b68cc'] },
+  { name: 'oil',   dens: 2, colors: ['#5e4226', '#684a2b', '#533a21'] },
+  { name: 'fire',  dens: 0, colors: ['#ff6a00'] },
+  { name: 'plant', dens: 9, colors: ['#3f9b3a', '#48a843', '#378a33', '#52b54b'] },
+  { name: 'smoke', dens: 0, how: 'fire dying out, or doused', colors: ['#8a8f9a'] }, // drawn from smokePal
+  { name: 'steam', dens: 0, how: 'water on fire, lava or embers', colors: ['#c9d6e8', '#d5e0ee', '#bccbe0'] },
+  { name: 'lava',  dens: 4, colors: ['#ff5a1f', '#ff7b26', '#e8401a', '#ff9a3c'] },
+  { name: 'glass', dens: 9, how: 'lava melting sand', colors: ['#9fd3dc', '#aedbe3', '#93c8d2', '#b9e3ea', '#a3d6df', '#e8fbff'] },
+  { name: 'obsidian', dens: 9, how: 'water quenching lava', colors: ['#2a2238', '#31283f', '#372d47', '#2d2540', '#3c3150', '#7d6a9c'] },
+  { name: 'ember', dens: 0, how: 'thrown by fire with fuel under it', colors: ['#ffb43a'] },
+  { name: 'ice',   dens: 9, colors: ['#c3e2fb', '#b6d9f6', '#cfe8fc', '#bcdcf8'] },
+  { name: 'snow',  dens: 2, how: 'steam touching ice', colors: ['#eef3fa', '#e2eaf5', '#f7f9fc'] },
+  { name: 'seed',  dens: 4, colors: ['#8c8a3e', '#7d7b35', '#9a9848'] },
+  { name: 'flower', dens: 9, how: 'a seed on wet sand, given time', colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
+];
+
+const rgb = (r, g, b) => (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
+const hex = h => rgb(parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16));
+const shades = MAT.map(m => Uint32Array.from(m.colors, hex));
+const dens = Int8Array.from(MAT, m => m.dens);
+const BG = shades[E][0];
+const FLOWER_HEART = hex('#ffd34d');
+
+// These hold their place; everything else can be pushed aside by something denser.
+const movable = new Uint8Array(MAT.length).fill(1);
+for (const t of [STONE, PLANT, GLASS, OBSIDIAN, ICE, FLOWER]) movable[t] = 0;
+
+// Nothing to simulate: the step loop skips these.
+const inert = new Uint8Array(MAT.length);
+for (const t of [E, STONE, GLASS, OBSIDIAN, FLOWER]) inert[t] = 1;
+
+// Chance per tick that a burning neighbour catches this material.
+const burn = new Float32Array(MAT.length);
+burn[OIL] = 0.06;
+burn[PLANT] = 0.03;
+burn[SEED] = 0.04;
+burn[FLOWER] = 0.05;
+
+const hot = new Uint8Array(MAT.length);
+hot[FIRE] = hot[EMBER] = hot[LAVA] = 1;
+
+// Materials you can only get by making them, roughly easiest first. The
+// discoveries list tracks these, saved per browser.
+const SECRETS = [SMOKE, STEAM, GLASS, OBSIDIAN, EMBER, SNOW, FLOWER];
+const secret = new Uint8Array(MAT.length);
+for (const t of SECRETS) secret[t] = 1;
+
+const FOUND_KEY = 'sand.found';
+let found = new Set();
+try { found = new Set(JSON.parse(localStorage.getItem(FOUND_KEY) || '[]')); } catch {}
+
+const firePal = new Uint32Array(256);
+const smokePal = new Uint32Array(256);
+for (let l = 0; l < 256; l++) {
+  const t = Math.min(1, l / 70);
+  firePal[l] = rgb(
+    Math.round(150 + 105 * Math.min(1, t * 1.6)),
+    Math.round(30 + 200 * t * t),
+    Math.round(10 + 60 * Math.max(0, t - 0.7) / 0.3)
+  );
+  const s = Math.min(1, l / 100);
+  smokePal[l] = rgb(Math.round(13 + 77 * s), Math.round(15 + 79 * s), Math.round(20 + 84 * s));
+}
+
+/** A pastel from the colour wheel, h in [0, 1). HSL with s 0.75, l 0.65. */
+function rainbow(h) {
+  const a = 0.75 * 0.35;
+  const f = n => {
+    const k = (n + h * 12) % 12;
+    return Math.round(255 * (0.65 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1))));
+  };
+  return rgb(f(0), f(8), f(4));
+}
+
+// --- simulation ------------------------------------------------------------
+
+let rngState = 0x9e3779b9;
+function rnd() {
+  rngState ^= rngState << 13; rngState ^= rngState >>> 17; rngState ^= rngState << 5;
+  return (rngState >>> 0) / 4294967296;
+}
+const dir = () => (rnd() < 0.5 ? -1 : 1);
+
+let tick = 1;
+
+function set(i, t, l = 0) {
+  type[i] = t;
+  life[i] = l;
+  const s = shades[t];
+  col[i] = s[(rnd() * s.length) | 0];
+  vel[i] = 0;
+  clock[i] = tick;
+  if (secret[t] === 1 && !found.has(MAT[t].name)) discover(t);
+}
+
+function swap(i, j) {
+  const t = type[i]; type[i] = type[j]; type[j] = t;
+  const l = life[i]; life[i] = life[j]; life[j] = l;
+  const c = col[i]; col[i] = col[j]; col[j] = c;
+  const v = vel[i]; vel[i] = vel[j]; vel[j] = v;
+  clock[i] = clock[j] = tick;
+}
+
+function startLife(t) {
+  switch (t) {
+    case FIRE: return 30 + rnd() * 50;
+    case SMOKE: return 60 + rnd() * 80;
+    case STEAM: return 80 + rnd() * 120;
+    case ICE: return 24;
+    default: return 0;
+  }
+}
+
+/** The one density rule: a mover displaces anything movable that is lighter. */
+function sinks(t, j) {
+  const u = type[j];
+  return movable[u] === 1 && dens[u] < dens[t];
+}
+
+/** Orthogonal neighbour k (0 up, 1 down, 2 left, 3 right), or -1 off the edge. */
+function nb(i, x, y, k) {
+  switch (k) {
+    case 0: return y > 0 ? i - W : -1;
+    case 1: return y < H - 1 ? i + W : -1;
+    case 2: return x > 0 ? i - 1 : -1;
+    default: return x < W - 1 ? i + 1 : -1;
+  }
+}
+
+function ignite(n) {
+  const isOil = type[n] === OIL;
+  set(n, FIRE, isOil ? 60 + rnd() * 80 : 30 + rnd() * 40);
+}
+
+function powder(i, x, y, t) {
+  if (y === H - 1) return;
+  const b = i + W;
+  if (sinks(t, b)) {
+    const isFreeFall = type[b] === E;
+    if (isFreeFall || rnd() < 0.6) swap(i, b);
+    return;
+  }
+  const d = dir();
+  if (x + d >= 0 && x + d < W && sinks(t, b + d)) { swap(i, b + d); return; }
+  if (x - d >= 0 && x - d < W && sinks(t, b - d)) swap(i, b - d);
+}
+
+function liquid(i, x, y, t, reach) {
+  if (y < H - 1) {
+    const b = i + W;
+    if (sinks(t, b)) { swap(i, b); return; }
+    const d = dir();
+    if (x + d >= 0 && x + d < W && sinks(t, b + d)) { swap(i, b + d); return; }
+    if (x - d >= 0 && x - d < W && sinks(t, b - d)) { swap(i, b - d); return; }
+  }
+  const d = dir();
+  let to = -1;
+  for (let k = 1; k <= reach; k++) {
+    const nx = x + d * k;
+    if (nx < 0 || nx >= W) break;
+    const n = i + d * k;
+    if (!sinks(t, n)) break;
+    to = n;
+    const canDrop = y < H - 1 && sinks(t, n + W);
+    if (canDrop) break;
+  }
+  if (to >= 0) swap(i, to);
+}
+
+function water(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0) continue;
+    const u = type[n];
+    if (u === FIRE) {
+      set(n, SMOKE, startLife(SMOKE));
+      if (rnd() < 0.3) { set(i, STEAM, startLife(STEAM)); return; }
+    } else if (u === LAVA) {
+      set(n, OBSIDIAN);
+      set(i, STEAM, startLife(STEAM));
+      return;
+    }
+  }
+  liquid(i, x, y, WATER, 5);
+}
+
+function lava(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0) continue;
+    const u = type[n];
+    if (burn[u] > 0 && rnd() < 0.5) ignite(n);
+    else if (u === SAND && rnd() < 0.02) {
+      set(n, GLASS);
+      // Melting sand costs heat; enough of it crusts the lava over.
+      if (rnd() < 0.15) { set(i, STONE); return; }
+    } else if (u === E && k === 0 && rnd() < 0.003) set(n, SMOKE, startLife(SMOKE));
+  }
+  if (rnd() < 0.08) col[i] = shades[LAVA][(rnd() * 4) | 0];
+  if (rnd() < 0.5) liquid(i, x, y, LAVA, 1);
+}
+
+const EMBER_RATE = 0.03;
+const EMBER_PEAK = 75; // above this life an ember climbs; below it, it falls
+
+function fire(i, x, y) {
+  let hasFuel = false;
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0) continue;
+    const p = burn[type[n]];
+    if (p > 0) {
+      hasFuel = true;
+      if (rnd() < p) ignite(n);
+    }
+  }
+  const l = life[i] - (hasFuel ? 1 : 3);
+  if (l <= 0) {
+    if (rnd() < 0.25) set(i, SMOKE, startLife(SMOKE));
+    else set(i, E);
+    return;
+  }
+  life[i] = l;
+  if (y === 0) return;
+  const d = ((rnd() * 3) | 0) - 1;
+  const nx = x + d;
+  if (nx < 0 || nx >= W) return;
+  const j = i - W + d;
+  if (type[j] !== E) return;
+  // Fire on fuel stays put and throws short flames, now and then an ember;
+  // loose fire drifts up.
+  if (hasFuel) {
+    const r = rnd();
+    if (r < EMBER_RATE) {
+      set(j, EMBER, 70 + rnd() * 40);
+      vel[j] = dir();
+    } else if (r < 0.35) {
+      set(j, FIRE, 8 + rnd() * 18);
+    }
+  } else if (rnd() < 0.4) {
+    swap(i, j);
+  }
+}
+
+// An ember flies in an arc and lights the first fuel it touches. Water hisses
+// it out as a puff of steam.
+function ember(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0) continue;
+    const u = type[n];
+    if (u === WATER) { set(i, STEAM, startLife(STEAM)); return; }
+    if (burn[u] > 0 && rnd() < burn[u] * 5) {
+      ignite(n);
+      set(i, E);
+      return;
+    }
+  }
+  const l = life[i] - 1;
+  if (l <= 0) { set(i, E); return; }
+  life[i] = l;
+  const isClimbing = l > EMBER_PEAK;
+  const dy = isClimbing ? -1 : 1;
+  const ny = y + dy;
+  const nx = x + vel[i];
+  const isMovingSideways = rnd() < 0.6 && nx >= 0 && nx < W;
+  const isMovingVertically = rnd() < (isClimbing ? 0.5 : 0.8) && ny >= 0 && ny < H;
+  const tx = isMovingSideways ? nx : x;
+  const ty = isMovingVertically ? ny : y;
+  const j = ty * W + tx;
+  if (j === i) return;
+  const u = type[j];
+  const isOpen = u === E || u === SMOKE || u === STEAM;
+  if (isOpen) swap(i, j);
+  else life[i] = Math.max(1, l - 4); // stuck embers fade fast
+}
+
+// Ice freezes neighbouring water, spending the cold it carries in `life`.
+function ice(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0) continue;
+    const u = type[n];
+    if (hot[u] === 1 && rnd() < 0.1) { set(i, WATER); return; }
+    if (u === STEAM && rnd() < 0.1) set(n, SNOW);
+  }
+  const hasCold = life[i] > 0;
+  if (!hasCold || rnd() > 0.08) return;
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n >= 0 && type[n] === WATER) set(n, ICE, life[i] - 1);
+}
+
+function snow(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n >= 0 && hot[type[n]] === 1 && rnd() < 0.2) { set(i, WATER); return; }
+  }
+  if (rnd() < 0.5) powder(i, x, y, SNOW);
+}
+
+// Plant sap at or above STEM marks a seedling's stem. Drinking water only
+// ever gives 0–6, so the two never mix.
+const STEM = 8;
+
+// A seed falls like sand. Resting on sand with water touching it, it sprouts
+// a stem with 6–18 cells of growth in it.
+function seed(i, x, y) {
+  const isOnSand = y < H - 1 && type[i + W] === SAND;
+  if (isOnSand && rnd() < 0.02) {
+    for (let k = 0; k < 4; k++) {
+      const n = nb(i, x, y, k);
+      if (n >= 0 && type[n] === WATER) { set(i, PLANT, STEM + 6 + rnd() * 12); return; }
+    }
+  }
+  powder(i, x, y, SEED);
+}
+
+// A plant drinks neighbouring water and turns it into more plant. Fresh growth
+// carries a little stored water in `life`, which it spends sprouting upward.
+// A stem climbs the same way until its sap is down to STEM, then blooms.
+function plant(i, x, y) {
+  if (rnd() > 0.1) return;
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n >= 0 && type[n] === WATER) {
+    set(n, PLANT, (rnd() * 7) | 0);
+    return;
+  }
+  const sap = life[i];
+  if (sap === 0 || y === 0 || rnd() > 0.2) return;
+  const d = ((rnd() * 3) | 0) - 1;
+  const nx = x + d;
+  if (nx < 0 || nx >= W) return;
+  const j = i - W + d;
+  if (type[j] !== E) return;
+  life[i] = 0;
+  if (sap === STEM) bloom(j, nx, y - 1);
+  else set(j, PLANT, sap - 1);
+}
+
+/** A yellow heart with one petal colour on each open side. */
+function bloom(i, x, y) {
+  set(i, FLOWER);
+  col[i] = FLOWER_HEART;
+  const petals = shades[FLOWER];
+  const petal = petals[(rnd() * petals.length) | 0];
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n < 0 || type[n] !== E) continue;
+    set(n, FLOWER);
+    col[n] = petal;
+  }
+}
+
+function gas(i, x, y, t) {
+  const l = life[i] - 1;
+  if (l <= 0) {
+    const isRain = t === STEAM && rnd() < 0.5;
+    if (isRain) set(i, WATER);
+    else set(i, E);
+    return;
+  }
+  life[i] = l;
+  if (y > 0) {
+    const d = ((rnd() * 3) | 0) - 1;
+    const nx = x + d;
+    if (nx >= 0 && nx < W) {
+      const j = i - W + d;
+      const u = type[j];
+      const isBubble = (u === WATER || u === OIL) && rnd() < 0.3;
+      if (u === E || isBubble) { swap(i, j); return; }
+    }
+  }
+  const d = dir();
+  if (x + d >= 0 && x + d < W && type[i + d] === E) swap(i, i + d);
+}
+
+/** Scans bottom-up, alternating sides each tick. `clock[i] === tick` marks a cell already moved. */
+function step() {
+  tick = tick === 255 ? 1 : tick + 1;
+  const isLeftFirst = (tick & 1) === 1;
+  for (let y = H - 1; y >= 0; y--) {
+    const row = y * W;
+    for (let k = 0; k < W; k++) {
+      const x = isLeftFirst ? k : W - 1 - k;
+      const i = row + x;
+      const t = type[i];
+      if (inert[t] === 1 || clock[i] === tick) continue;
+      switch (t) {
+        case SAND: powder(i, x, y, t); break;
+        case WATER: water(i, x, y); break;
+        case OIL: liquid(i, x, y, OIL, 3); break;
+        case LAVA: lava(i, x, y); break;
+        case FIRE: fire(i, x, y); break;
+        case EMBER: ember(i, x, y); break;
+        case ICE: ice(i, x, y); break;
+        case SNOW: snow(i, x, y); break;
+        case SEED: seed(i, x, y); break;
+        case PLANT: plant(i, x, y); break;
+        case SMOKE:
+        case STEAM: gas(i, x, y, t); break;
+      }
+    }
+  }
+}
+
+// --- panel -----------------------------------------------------------------
+
+const TOOLS = [
+  [SAND, '1'], [WATER, '2'], [OIL, '3'], [FIRE, '4'], [PLANT, '5'],
+  [SEED, '6'], [STONE, '7'], [LAVA, '8'], [ICE, '9'], [E, '0'],
+];
+const LOOSE = new Set([SAND, WATER, OIL, FIRE, LAVA, SEED]);
+
+let mat = SAND;
+let brush = 4;
+let paused = false;
+let isRainbow = false;
+const pointers = new Map(); // pointerId -> { x, y, lx, ly, erase }; one per finger
+let hover = null;            // { x, y } for the ring and the readout
+
+const navEl = document.getElementById('nav');
+const searchEl = document.getElementById('search');
+const collapseEl = document.getElementById('collapse');
+const toastEl = document.getElementById('toast');
+
+const buttons = new Map();
+for (const [t, key] of TOOLS) {
+  const b = document.querySelector(`#tools [data-mat="${MAT[t].name}"]`);
+  if (t !== E) b.querySelector('.sw').style.background = MAT[t].colors[0];
+  b.title = `${t === E ? 'erase' : MAT[t].name} (${key})`;
+  b.addEventListener('click', () => pick(t));
+  buttons.set(t, b);
+}
+for (const el of navEl.querySelectorAll('[data-find=""]')) el.dataset.find = el.textContent.toLowerCase();
+
+function pick(t) {
+  mat = t;
+  for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === t));
+}
+
+/**
+ * Shows only the panel items that match the search. A discovery not yet made
+ * stays hidden unless searched by its exact name, which reveals its recipe.
+ */
+function filter() {
+  const q = searchEl.value.trim().toLowerCase();
+  const isSearching = q !== '';
+  let total = 0;
+  for (const group of navEl.querySelectorAll('.group')) {
+    let shown = 0;
+    for (const item of group.querySelectorAll('[data-find], [data-secret]')) {
+      const isLocked = item.dataset.secret !== undefined;
+      let isMatch = true;
+      if (isSearching && isLocked) isMatch = q === item.dataset.secret;
+      else if (isSearching) isMatch = item.dataset.find.includes(q);
+      item.hidden = !isMatch;
+      if (isLocked) item.classList.toggle('is-hinted', isSearching && isMatch);
+      if (isMatch) shown++;
+    }
+    group.hidden = isSearching && shown === 0;
+    total += shown;
+  }
+  document.getElementById('nomatch').hidden = !isSearching || total > 0;
+}
+
+function clearSearch() {
+  searchEl.value = '';
+  filter();
+}
+
+searchEl.addEventListener('input', filter);
+searchEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    const first = [...navEl.querySelectorAll('.group button')].find(b => !b.hidden);
+    if (first) first.click();
+  }
+  const isDone = e.key === 'Enter' || e.key === 'Escape';
+  if (!isDone) return;
+  clearSearch();
+  searchEl.blur();
+});
+
+let isCollapsed = false;
+function setCollapsed(c) {
+  isCollapsed = c;
+  appEl.classList.toggle('is-collapsed', c);
+  collapseEl.setAttribute('aria-expanded', String(!c));
+  collapseEl.textContent = c ? '»' : '«';
+  collapseEl.title = c ? 'unfold panel (n)' : 'fold panel (n)';
+  collapseEl.setAttribute('aria-label', collapseEl.title);
+  if (c) clearSearch();
+  try { localStorage.setItem(NAV_KEY, c ? 'collapsed' : 'open'); } catch {}
+}
+collapseEl.addEventListener('click', () => setCollapsed(!isCollapsed));
+
+let toastTimer = 0;
+function toast(text) {
+  toastEl.textContent = text;
+  toastEl.classList.add('is-shown');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toastEl.classList.remove('is-shown'), 2600);
+}
+
+function discover(t) {
+  found.add(MAT[t].name);
+  try { localStorage.setItem(FOUND_KEY, JSON.stringify([...found])); } catch {}
+  showFound(t);
+  const isAll = SECRETS.every(s => found.has(MAT[s].name));
+  if (isAll) toast(`discovered ${MAT[t].name} · that's all ${SECRETS.length}`);
+  else toast(`discovered ${MAT[t].name}`);
+}
+
+function showFound(fresh) {
+  const rows = SECRETS.map(t => {
+    const m = MAT[t];
+    const li = document.createElement('li');
+    if (found.has(m.name)) {
+      li.dataset.find = `${m.name} ${m.how}`;
+      li.innerHTML = '<span class="sw"></span><span class="label"><span></span><small></small></span>';
+      li.querySelector('.sw').style.background = m.colors[m.colors.length - 1];
+      li.querySelector('.label > span').textContent = m.name;
+      li.querySelector('small').textContent = m.how;
+      if (t === fresh) li.className = 'new';
+    } else {
+      li.dataset.secret = m.name;
+      li.className = 'locked';
+      li.innerHTML = '<span class="sw"></span><span class="label"><span><span class="name-q">?</span>'
+        + '<span class="name-hint"></span></span><small><span class="how-q">not found yet</span>'
+        + '<span class="how-hint"></span></small></span>';
+      li.querySelector('.name-hint').textContent = `${m.name}, not found yet`;
+      li.querySelector('.how-hint').textContent = `try ${m.how}`;
+    }
+    return li;
+  });
+  document.getElementById('found').replaceChildren(...rows);
+  const count = SECRETS.filter(t => found.has(MAT[t].name)).length;
+  const countEl = document.getElementById('found-count');
+  countEl.textContent = `${count} / ${SECRETS.length}`;
+  countEl.classList.toggle('is-complete', count === SECRETS.length);
+  filter();
+}
+
+const brushEl = document.getElementById('brush');
+function setBrush(r) {
+  brush = Math.max(0, Math.min(30, r));
+  brushEl.value = brush;
+  document.getElementById('size').textContent = brush * 2 + 1;
+}
+brushEl.addEventListener('input', () => setBrush(+brushEl.value));
+
+function showState() {
+  const parts = [];
+  if (paused) parts.push('paused');
+  if (isRainbow) parts.push('rainbow sand');
+  document.getElementById('state').textContent = parts.join(' · ');
+}
+
+function setPaused(p) {
+  paused = p;
+  document.querySelector('#pause .label').textContent = p ? 'play' : 'pause';
+  showState();
+}
+
+// ↑ ↑ ↓ ↓ ← → ← → b a toggles rainbow sand.
+const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
+let konami = 0;
+function trackKonami(key) {
+  if (key === KONAMI[konami]) konami++;
+  else if (key === KONAMI[0]) konami = konami === 2 ? 2 : 1;
+  else konami = 0;
+  if (konami < KONAMI.length) return;
+  konami = 0;
+  isRainbow = !isRainbow;
+  if (isRainbow) pick(SAND);
+  toast(isRainbow ? 'rainbow sand' : 'plain sand again');
+  showState();
+}
+
+// --- input -----------------------------------------------------------------
+
+function cell(e) {
+  const r = cv.getBoundingClientRect();
+  return {
+    x: Math.floor(((e.clientX - r.left) / r.width) * W),
+    y: Math.floor(((e.clientY - r.top) / r.height) * H),
+  };
+}
+
+function dab(cx, cy, erase) {
+  const r2 = brush * brush + brush;
+  const fill = LOOSE.has(mat) ? 0.3 : 1;
+  const isRainbowSand = isRainbow && mat === SAND;
+  const hue = performance.now() / 4000; // drifts over time and across x
+  for (let dy = -brush; dy <= brush; dy++) {
+    for (let dx = -brush; dx <= brush; dx++) {
+      if (dx * dx + dy * dy > r2) continue;
+      const x = cx + dx, y = cy + dy;
+      if (x < 0 || x >= W || y < 0 || y >= H) continue;
+      const i = y * W + x;
+      if (erase) { set(i, E); continue; }
+      if (type[i] !== E || rnd() > fill) continue;
+      set(i, mat, startLife(mat));
+      if (isRainbowSand) col[i] = rainbow((hue + x / 60) % 1);
+    }
+  }
+}
+
+function paint(p) {
+  const dist = Math.max(Math.abs(p.x - p.lx), Math.abs(p.y - p.ly));
+  const steps = Math.max(1, Math.ceil(dist / Math.max(1, brush / 2)));
+  for (let s = 1; s <= steps; s++) {
+    const t = s / steps;
+    dab(Math.round(p.lx + (p.x - p.lx) * t), Math.round(p.ly + (p.y - p.ly) * t), p.erase);
+  }
+  p.lx = p.x; p.ly = p.y;
+}
+
+// Painting happens here as well as in the frame loop: a fast drag would
+// otherwise skip whole stretches.
+cv.addEventListener('pointerdown', e => {
+  e.preventDefault();
+  try { cv.setPointerCapture(e.pointerId); } catch {} // throws for pointers the browser no longer tracks
+  const c = cell(e);
+  const isErase = e.button === 2 || mat === E;
+  const p = { x: c.x, y: c.y, lx: c.x, ly: c.y, erase: isErase };
+  pointers.set(e.pointerId, p);
+  hover = c;
+  paint(p);
+});
+cv.addEventListener('pointermove', e => {
+  const c = cell(e);
+  hover = c;
+  const p = pointers.get(e.pointerId);
+  if (!p) return;
+  p.x = c.x; p.y = c.y;
+  paint(p);
+});
+const lift = e => {
+  pointers.delete(e.pointerId);
+  const isLastFinger = e.pointerType === 'touch' && pointers.size === 0;
+  if (isLastFinger) hover = null;
+};
+cv.addEventListener('pointerup', lift);
+cv.addEventListener('pointercancel', lift);
+cv.addEventListener('pointerleave', () => { if (pointers.size === 0) hover = null; });
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => {
+  e.preventDefault();
+  setBrush(brush + (e.deltaY < 0 ? 1 : -1));
+}, { passive: false });
+
+addEventListener('keydown', e => {
+  const isTyping = e.target === searchEl;
+  if (e.ctrlKey || e.metaKey || e.altKey || isTyping) return;
+  trackKonami(e.key.toLowerCase());
+  const tool = TOOLS.find(([, key]) => key === e.key);
+  if (tool) { pick(tool[0]); return; }
+  switch (e.key) {
+    case ' ': e.preventDefault(); setPaused(!paused); break;
+    case 'c': clear(); break;
+    case 'r': scene(); break;
+    case 'n': setCollapsed(!isCollapsed); break;
+    case '/': e.preventDefault(); setCollapsed(false); searchEl.focus(); break;
+    case '[': setBrush(brush - 1); break;
+    case ']': setBrush(brush + 1); break;
+  }
+});
+document.getElementById('pause').addEventListener('click', () => setPaused(!paused));
+document.getElementById('clear').addEventListener('click', () => clear());
+document.getElementById('scene').addEventListener('click', () => scene());
+
+// --- app -------------------------------------------------------------------
+
+// Offline play; see sw.js. Service workers need http(s), so a page opened
+// straight from disk runs without one.
+if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+  navigator.serviceWorker.register('./sw.js').catch(() => {});
+}
+
+// Browsers that can install the app say so with this event. The button only
+// exists while that offer stands, so search never finds a dead one.
+let installOffer = null;
+addEventListener('beforeinstallprompt', e => {
+  e.preventDefault();
+  installOffer = e;
+  if (document.getElementById('install')) return;
+  const b = document.createElement('button');
+  b.id = 'install';
+  b.dataset.find = 'install app offline';
+  b.innerHTML = '<span class="label">install <small>play offline, own window</small></span>';
+  b.addEventListener('click', async () => {
+    if (!installOffer) return;
+    installOffer.prompt();
+    await installOffer.userChoice;
+    installOffer = null;
+    b.remove();
+  });
+  document.querySelector('#clear').after(b);
+  filter();
+});
+addEventListener('appinstalled', () => document.getElementById('install')?.remove());
+
+// --- world -----------------------------------------------------------------
+
+function clear() {
+  type.fill(E); life.fill(0); clock.fill(0); col.fill(BG); vel.fill(0);
+}
+
+function rect(x0, y0, x1, y1, t) {
+  for (let y = y0; y <= y1; y++)
+    for (let x = x0; x <= x1; x++)
+      set(y * W + x, t, startLife(t));
+}
+
+/** The starting scene, drawn on a 300 × 180 plan and stretched to the grid. Walls stay 3 cells thick. */
+function scene() {
+  clear();
+  const X = v => Math.round((v / 300) * (W - 1));
+  const Y = v => Math.round((v / 180) * (H - 1));
+  for (let x = 0; x < W; x++) {
+    const u = (x / W) * 300;
+    const top = Y(166) + Math.round((4 * Math.sin(u / 23) + 2 * Math.sin(u / 7)) * (H / 180));
+    rect(x, top, x, H - 1, SAND);
+  }
+  // Left basin: water under a layer of oil.
+  const bl = X(30), br = X(110), bt = Y(92), bb = Y(136);
+  rect(bl, bt, bl + 2, bb, STONE);
+  rect(br - 2, bt, br, bb, STONE);
+  rect(bl, bb - 2, br, bb, STONE);
+  rect(bl + 3, Y(104), br - 3, bb - 3, WATER);
+  rect(bl + 3, Y(97), br - 3, Y(104) - 1, OIL);
+  // Right shelf: a shallow pool with a plant at one end.
+  const sl = X(190), sr = X(280), sb = Y(120), st = Y(108);
+  rect(sl, sb, sr, sb + 2, STONE);
+  rect(sl, st, sl + 2, sb - 1, STONE);
+  rect(sr - 2, st, sr, sb - 1, STONE);
+  rect(sl + 7, Y(112), sr - 3, sb - 1, WATER);
+  rect(sl + 3, Y(106), sl + 6, sb - 1, PLANT);
+  // A ledge to pour things over.
+  rect(X(140), Y(60), X(175), Y(60) + 2, STONE);
+}
+
+// --- render ----------------------------------------------------------------
+
+function render() {
+  for (let i = 0; i < N; i++) {
+    const t = type[i];
+    if (t === FIRE) buf[i] = firePal[life[i]];
+    else if (t === EMBER) buf[i] = firePal[life[i] + 20];
+    else if (t === SMOKE) buf[i] = smokePal[life[i]];
+    else buf[i] = col[i];
+  }
+  ctx.putImageData(img, 0, 0);
+  const rings = pointers.size ? [...pointers.values()] : [hover].filter(Boolean);
+  if (!rings.length) return;
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 0.6;
+  ctx.beginPath();
+  for (const r of rings) {
+    ctx.moveTo(r.x + brush + 1, r.y + 0.5);
+    ctx.arc(r.x + 0.5, r.y + 0.5, brush + 0.5, 0, Math.PI * 2);
+  }
+  ctx.stroke();
+}
+
+/** Scale the canvas to fit the stage, keeping its cells square. */
+function fit() {
+  const r = stageEl.getBoundingClientRect();
+  const s = Math.min(r.width / W, r.height / H);
+  cv.style.width = `${Math.floor(W * s)}px`;
+  cv.style.height = `${Math.floor(H * s)}px`;
+}
+
+const underEl = document.getElementById('under');
+let shownUnder = '';
+function showUnder() {
+  const isInside = hover && hover.x >= 0 && hover.x < W && hover.y >= 0 && hover.y < H;
+  const name = isInside ? MAT[type[hover.y * W + hover.x]].name : '—';
+  if (name === shownUnder) return;
+  underEl.textContent = name;
+  shownUnder = name;
+}
+
+const DT = 1000 / 60;
+let last = performance.now(), acc = 0;
+function frame(now) {
+  acc = Math.min(acc + now - last, DT * 3);
+  last = now;
+  while (acc >= DT) {
+    for (const p of pointers.values()) paint(p);
+    if (!paused) step();
+    acc -= DT;
+  }
+  render();
+  showUnder();
+  requestAnimationFrame(frame);
+}
+
+fit();
+new ResizeObserver(fit).observe(stageEl);
+setCollapsed(appEl.classList.contains('is-collapsed'));
+showFound();
+pick(SAND);
+// About a fingertip across on screen, whatever the cell size.
+setBrush(Math.max(2, Math.min(12, Math.round(15 / (cv.clientWidth / W)))));
+setPaused(false);
+scene();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
