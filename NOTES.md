@@ -10,6 +10,7 @@ installs as an app and plays offline (see "App" below).
 | sand     | 1   | Powder. Sinks slowly through liquids.                                     |
 | water    | 2   | Liquid. Puts out fire (smoke, some steam), quenches lava (obsidian, steam). |
 | oil      | 3   | Liquid, floats on water. Burns slowly; burning oil stays put and flames.  |
+| acid     | a   | Liquid. Eats what it touches, 10 bites each, except glass. Water dilutes it. |
 | fire     | 4   | Stays on fuel and throws flames and embers; loose fire drifts up & dies.  |
 | plant    | 5   | Drinks touching water into more plant; spare water sprouts upward.        |
 | seed     | 6   | Falls like sand. On sand with water touching it, sprouts a stem.          |
@@ -22,18 +23,22 @@ installs as an app and plays offline (see "App" below).
 | obsidian | no  | lava + water                                                              |
 | ember    | no  | thrown by fire on fuel; arcs 30–60 cells and lights fuel it lands on      |
 | snow     | no  | steam + ice. Falls, floats on water, melts near heat.                     |
+| fume     | no  | a quarter of what acid eats goes up as this green gas                     |
 | flower   | no  | top of a seed's stem: a yellow heart, one petal colour per bloom          |
 
-The seven unpaintable ones are the discoveries (`SECRETS`), saved per browser
+The eight unpaintable ones are the discoveries (`SECRETS`), saved per browser
 in `localStorage` under `sand.found`. Each has a `how` in `MAT`, shown once
 found.
 
 ## How the code works
 
 - State is typed arrays over the grid: `type`, `life`, `col` (shade), `vel`
-  (ember heading), `clock`. The grid's size is fixed at load (see below).
-- `life` means something different per material: fire/smoke/steam lifetime,
-  plant sap, ice cold budget, ember flight time.
+  (ember heading), `clock`. `shapeGrid()` reallocates them when the stage
+  changes size (see below).
+- `life` means something different per material: fire/smoke/steam/fume
+  lifetime, plant sap, ice cold budget, ember flight time, acid bites left.
+- Acid's `etch` table is the chance per bite of eating each material. Glass
+  is missing from it on purpose: it's what you keep acid in.
 - Plant sap from drinking water is 0–6. A seed sprouts with `STEM` + 6–18;
   that stem climbs, and when its sap is down to exactly `STEM` it blooms
   instead of growing. The two ranges never overlap, so one byte holds both.
@@ -45,30 +50,37 @@ found.
 
 ## Layout
 
-- Full window (`100vw` × `100vh`), never smaller than 640 × 480; below that
-  the page scrolls.
-- A panel on the left holds everything: search, materials, brush, world
-  controls, discoveries, help. It scrolls on its own. `n` or the « button
-  folds it to a 60 px rail of swatches; the choice is kept in `sand.nav`.
+- Full window (`100vw` × `100vh`), never smaller than 640 × 480. The canvas
+  fills all of it, with no margin or border.
+- A panel floats over the left of the sandbox and holds everything: search,
+  materials, brush, ui size, world controls, discoveries, help. It scrolls on
+  its own. `n` or the « button folds it to a 60 px rail of swatches. Until
+  the player picks, it starts folded in windows under 900 px wide; the pick
+  is kept in `sand.nav`.
+- `scene()` lays its plan out from the panel's right edge, so nothing starts
+  under it. Sand poured under the panel is still there, just covered.
+- UI size (`-` / `=`, or the − + buttons) scales the panel, the strip and
+  the toast through the `--ui` CSS variable, using `transform: scale`. Until
+  the player picks, it follows the window: 100% up to 900 px tall, up to 125%
+  above that. Clicking the percentage goes back to automatic. Kept in
+  `sand.ui`.
 - Search (`/`) filters every panel item by name and description. Enter picks
   the first button left, Escape clears. A discovery not yet made only shows
   when searched by its exact name, and then shows its recipe.
-- What's under the brush, and pause, show in a strip over the stage.
+- What's under the brush, and pause, show in a strip at the bottom right.
   Discoveries also pop a toast there, so they're seen with the panel folded.
 
 ## Screens and touch
 
-- The grid takes the shape of the stage it loads in: aspect clamped to
-  0.45–3.2, and about one cell per 9 px² up to 54,000 cells (minimum 20,000).
-  Measured: 640×480 gives 129×155 at 2.9 px per cell, 1024×768 gives
-  235×230 at 3.2 px, 1366×768 gives 283×191 at 3.9 px, a desktop 1874×1122
-  gives 282×191 at 5.7 px.
-- The grid doesn't change after load; on resize, or folding the panel, `fit()`
-  rescales the canvas with square cells. Reload to get a grid shaped for the
-  new stage.
-- The panel's buttons are in the HTML, not built by the script, and its saved
-  folded state is applied before the stage is measured. Either way, the grid
-  is measured against the stage the player actually sees.
+- The grid fills the stage with cells of 3 px or more, as many as fit up to
+  `MAX_CELLS` (54,000). Measured: 640×480 gives 213×160 at 3 px per cell,
+  900×700 gives 263×205 at 3.4 px, 1280×960 gives 268×201 at 4.8 px.
+- When the stage changes size, `shapeGrid()` runs once the resize settles
+  (150 ms) and builds a new grid. Content keeps its place from the bottom
+  left; whatever no longer fits is lost. Above about 800×600 the cell count
+  is at the cap, so resizing mostly rescales cells: 1280×960 down to 900×700
+  and back kept 99% of a scene. Until then the canvas stretches, and cells
+  can end up a hair off square.
 - `scene()` is drawn on a 300×180 plan and stretched, with walls kept 3
   cells thick.
 - `pointers` holds one stroke per finger, so several fingers pour at once.
@@ -76,9 +88,14 @@ found.
   size.
 - Touch screens (`hover: none` and `pointer: coarse`) get 40 px buttons, no
   key labels and their own help line.
-- With the 640 × 480 floor, a phone in portrait scrolls sideways. Not tried
-  on a real phone or tablet. The layout was checked in Brave, and in iframes
-  at 560×420, 640×480, 1024×768 and 1366×768.
+- Screens smaller than 640 × 480 (phones) get a viewport tag with a layout
+  width that makes room for 640 × 480, and the browser scales the page down
+  to fit. It's worked out from `screen` and the browser bars' height, read at
+  load, and redone on rotation. A phone in portrait gets `width=640`.
+  Desktop browsers ignore the tag, so this has only been worked through on
+  paper, not tried on a real phone.
+- The layout was checked in Brave at 640×480, and in iframes resized
+  between 900×700 and 1280×960.
 
 ## App
 
@@ -111,6 +128,8 @@ found.
   a fast drag paints nothing.
 - A seed on wet sand sprouts at 2% a tick; a bed of them shows its first
   flower about 4 s in.
+- Acid at 10 bites: 25 × 24 cells of it ate through a 3-cell stone bowl and
+  a whole sand floor in 30 s. The same acid in a glass jar stayed put.
 
 ## Easter eggs
 
@@ -122,5 +141,3 @@ found.
 
 - Wind, or any field that pushes gases sideways.
 - Save and load a scene (the typed arrays serialise easily).
-- Acid, which would need a rule for what it can't dissolve. Glass is the
-  obvious answer, and it's a discovery, so you'd have to make the jar first.

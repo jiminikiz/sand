@@ -3,8 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<script>
+// The layout needs 640 × 480. A smaller screen (a phone) gets a layout
+// viewport that big, scaled down to fit, instead of a page that scrolls.
+// Desktop browsers ignore the viewport tag.
+(() => {
+  const meta = document.querySelector('meta[name="viewport"]');
+  const isPortrait = () => matchMedia('(orientation: portrait)').matches;
+  const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
+  // Browser bars' height, read while the viewport is still 1:1.
+  const bars = Math.max(0, (isPortrait() ? long : short) - innerHeight);
+  function fitViewport() {
+    const w = isPortrait() ? short : long;
+    const h = (isPortrait() ? long : short) - bars;
+    const scale = Math.min(1, w / 640, h / 480);
+    meta.content = scale < 1 ? `width=${Math.ceil(w / scale)}` : 'width=device-width, initial-scale=1';
+  }
+  fitViewport();
+  screen.orientation?.addEventListener('change', fitViewport);
+})();
+</script>
 <title>Falling Sand</title>
-<meta name="description" content="A falling-sand toy. Pour sand, water, oil, fire, lava, ice and seeds, and see what they make.">
+<meta name="description" content="A falling-sand toy. Pour sand, water, oil, acid, fire, lava, ice and seeds, and see what they make.">
 <meta name="theme-color" content="#0b0d12">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -12,14 +32,14 @@
 <style>
   :root {
     --bg: #0b0d12;
-    --nav-bg: #10131a;
+    --nav-bg: rgba(16, 19, 26, 0.9);
     --panel: #141821;
     --line: #262b38;
     --text: #d9dce4;
     --muted: #7d8496;
     --faint: #4d5363;
     --focus: #e9c46a;
-    --nav: 236px;
+    --ui: 1; /* scales the panel and overlays; set by the script */
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -31,16 +51,17 @@
     -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
   }
 
-  .app {
-    width: 100vw; height: 100vh; min-width: 640px; min-height: 480px;
-    display: grid; grid-template-columns: var(--nav) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr);
-  }
-  .app.is-collapsed { --nav: 60px; }
+  .app { position: relative; width: 100vw; height: 100vh; min-width: 640px; min-height: 480px; overflow: hidden; }
 
+  /* The panel floats over the left of the sandbox, scaled by --ui. */
   nav {
+    position: absolute; left: 0; top: 0; z-index: 2;
+    width: 236px; height: calc(100% / var(--ui));
+    transform: scale(var(--ui)); transform-origin: 0 0;
     display: flex; flex-direction: column; gap: 18px; padding: 12px;
     overflow-y: auto; overscroll-behavior: contain;
     background: var(--nav-bg); border-right: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
     scrollbar-width: thin; scrollbar-color: var(--line) transparent;
   }
   .nav-head { display: flex; align-items: center; gap: 8px; }
@@ -80,6 +101,10 @@
   .brush { display: flex; align-items: center; gap: 10px; }
   .brush input { flex: 1; min-width: 0; accent-color: var(--focus); }
   .brush b { min-width: 2ch; text-align: right; font-weight: 500; }
+  .ui-size { display: flex; align-items: center; gap: 6px; }
+  .ui-size > span { flex: 1; }
+  .ui-size button { padding: 3px 10px; justify-content: center; }
+  #ui-value { min-width: 6ch; }
 
   #found li.locked { color: var(--faint); }
   #found li.locked .sw { outline: 1px dashed var(--faint); }
@@ -93,32 +118,33 @@
   .help { color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
   footer { margin-top: auto; color: var(--faint); font-size: 11.5px; }
 
-  .is-collapsed nav { padding: 12px 8px; }
+  .is-collapsed nav { width: 60px; padding: 12px 8px; }
   .is-collapsed :is(.nav-head h1, .find, .nomatch, h2, .label, nav kbd, footer) { display: none; }
   .is-collapsed .group:not(.materials) { display: none; }
   .is-collapsed .nav-head { justify-content: center; }
   .is-collapsed .list button { justify-content: center; padding: 9px 0; }
 
-  .stage {
-    position: relative; margin: 12px; min-width: 0; min-height: 0;
-    display: grid; place-items: center; overflow: hidden;
-  }
+  .stage { position: absolute; inset: 0; }
   canvas {
-    display: block; border-radius: 8px; outline: 1px solid var(--line); background: #0d0f14;
+    display: block; width: 100%; height: 100%; background: #0d0f14;
     image-rendering: pixelated; touch-action: none; cursor: none; -webkit-touch-callout: none;
   }
   .hud, .toast {
     position: absolute; pointer-events: none; font-size: 12px;
     background: rgba(16, 19, 26, 0.82); border: 1px solid var(--line); border-radius: 6px; padding: 3px 9px;
   }
-  .hud { left: 8px; bottom: 8px; color: var(--muted); display: flex; gap: 12px; }
+  .hud {
+    right: 8px; bottom: 8px; color: var(--muted); display: flex; gap: 12px;
+    transform: scale(var(--ui)); transform-origin: 100% 100%;
+  }
   .hud b { color: var(--text); font-weight: 500; }
   .hud #state:empty { display: none; }
   .toast {
     top: 10px; left: 50%; font-size: 13px; padding: 5px 12px;
-    opacity: 0; transform: translate(-50%, -6px); transition: opacity 0.25s, transform 0.25s;
+    opacity: 0; transform: translate(-50%, -6px) scale(var(--ui)); transform-origin: 50% 0;
+    transition: opacity 0.25s, transform 0.25s;
   }
-  .toast.is-shown { opacity: 1; transform: translate(-50%, 0); }
+  .toast.is-shown { opacity: 1; transform: translate(-50%, 0) scale(var(--ui)); }
 
   .touch-only { display: none; }
   @media (hover: none) and (pointer: coarse) {
@@ -143,14 +169,13 @@
     </label>
     <p class="nomatch" id="nomatch" hidden>nothing matches</p>
 
-    <!-- The buttons are in the HTML, not built by the script: the stage has to
-         have its final size when the grid is measured. -->
     <section class="group materials">
       <h2>materials</h2>
       <div class="list" id="tools">
         <button data-mat="sand" data-find><span class="sw"></span><span class="label">sand <small>powder, sinks in liquid</small></span><kbd>1</kbd></button>
         <button data-mat="water" data-find><span class="sw"></span><span class="label">water <small>douses fire, quenches lava</small></span><kbd>2</kbd></button>
         <button data-mat="oil" data-find><span class="sw"></span><span class="label">oil <small>floats on water, burns slow</small></span><kbd>3</kbd></button>
+        <button data-mat="acid" data-find><span class="sw"></span><span class="label">acid <small>eats all but glass</small></span><kbd>a</kbd></button>
         <button data-mat="fire" data-find><span class="sw"></span><span class="label">fire <small>burns fuel, throws embers</small></span><kbd>4</kbd></button>
         <button data-mat="plant" data-find><span class="sw"></span><span class="label">plant <small>drinks water and grows</small></span><kbd>5</kbd></button>
         <button data-mat="seed" data-find><span class="sw"></span><span class="label">seed <small>sprouts on wet sand</small></span><kbd>6</kbd></button>
@@ -164,6 +189,16 @@
     <section class="group">
       <h2>brush</h2>
       <label class="brush" data-find="brush size"><input id="brush" type="range" min="0" max="30" aria-label="brush size"><b id="size"></b></label>
+    </section>
+
+    <section class="group">
+      <h2>view</h2>
+      <div class="ui-size" data-find="ui size scale zoom bigger smaller text">
+        <span>ui size</span>
+        <button id="ui-down" aria-label="smaller panel" title="smaller (-)">−</button>
+        <button id="ui-value" title="back to automatic"></button>
+        <button id="ui-up" aria-label="bigger panel" title="bigger (=)">+</button>
+      </div>
     </section>
 
     <section class="group">
@@ -184,6 +219,7 @@
       <span class="fine-only">drag to pour · right-drag to erase</span>
       <span class="fine-only">scroll or [ ] for brush size</span>
       <span class="fine-only">/ to search · n to fold this panel</span>
+      <span class="fine-only">- = for ui size</span>
       <span class="touch-only">drag to pour · pour with several fingers at once · pick erase to rub out</span>
     </section>
 
@@ -201,35 +237,48 @@
 
 const appEl = document.querySelector('.app');
 const stageEl = document.querySelector('.stage');
-
-// The panel's saved state goes on before the stage is measured, so the grid
-// takes the shape of the stage the player actually sees.
-const NAV_KEY = 'sand.nav';
-try { appEl.classList.toggle('is-collapsed', localStorage.getItem(NAV_KEY) === 'collapsed'); } catch {}
-
-// The grid takes the shape of the stage it loads in. Cells are about 3 px or
-// more, up to 54,000 of them.
-const box = stageEl.getBoundingClientRect();
-const hasBox = box.width > 0 && box.height > 0;
-const aspect = hasBox ? Math.min(3.2, Math.max(0.45, box.width / box.height)) : 5 / 3;
-const CELLS = hasBox ? Math.min(54000, Math.max(20000, Math.round((box.width * box.height) / 9))) : 54000;
-const W = Math.round(Math.sqrt(CELLS * aspect)), H = Math.round(CELLS / W), N = W * H;
 const cv = document.getElementById('c');
-cv.width = W; cv.height = H;
 const ctx = cv.getContext('2d');
-const img = ctx.createImageData(W, H);
-const buf = new Uint32Array(img.data.buffer);
 
-const type = new Uint8Array(N);
-const life = new Uint8Array(N);
-const clock = new Uint8Array(N);
-const col = new Uint32Array(N);
-const vel = new Int8Array(N); // ember heading: -1 left, 1 right
+// The grid fills the stage, with cells of 3 px or more, as many as fit up to
+// MAX_CELLS. shapeGrid sets everything below.
+const MAX_CELLS = 54000;
+let W = 0, H = 0, N = 0;
+let type, life, clock, col, vel; // per cell; vel is an ember's heading, -1 left or 1 right
+let img, buf;
+
+/**
+ * Fits the grid to the stage. What is there keeps its place from the bottom
+ * left; what no longer fits is lost. Cells can end up a hair off square.
+ */
+function shapeGrid() {
+  const r = stageEl.getBoundingClientRect();
+  if (r.width === 0 || r.height === 0) return;
+  const cellPx = Math.max(3, Math.sqrt((r.width * r.height) / MAX_CELLS));
+  const w = Math.round(r.width / cellPx), h = Math.round(r.height / cellPx);
+  if (w === W && h === H) return;
+  const old = [type, life, clock, col, vel], oldW = W, oldH = H;
+  W = w; H = h; N = W * H;
+  type = new Uint8Array(N);
+  life = new Uint8Array(N);
+  clock = new Uint8Array(N);
+  col = new Uint32Array(N).fill(BG);
+  vel = new Int8Array(N);
+  const now = [type, life, clock, col, vel];
+  const keepW = Math.min(W, oldW), keepH = Math.min(H, oldH);
+  for (let y = 1; y <= keepH; y++) {
+    const from = (oldH - y) * oldW, to = (H - y) * W;
+    for (let a = 0; a < now.length; a++) now[a].set(old[a].subarray(from, from + keepW), to);
+  }
+  cv.width = W; cv.height = H;
+  img = ctx.createImageData(W, H);
+  buf = new Uint32Array(img.data.buffer);
+}
 
 // --- materials -------------------------------------------------------------
 
 const E = 0, STONE = 1, SAND = 2, WATER = 3, OIL = 4, FIRE = 5, PLANT = 6, SMOKE = 7, STEAM = 8, LAVA = 9,
-  GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16;
+  GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16, ACID = 17, FUME = 18;
 
 // `how` is the recipe a discovery shows once it has been made.
 const MAT = [
@@ -250,6 +299,8 @@ const MAT = [
   { name: 'snow',  dens: 2, how: 'steam touching ice', colors: ['#eef3fa', '#e2eaf5', '#f7f9fc'] },
   { name: 'seed',  dens: 4, colors: ['#8c8a3e', '#7d7b35', '#9a9848'] },
   { name: 'flower', dens: 9, how: 'a seed on wet sand, given time', colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
+  { name: 'acid',  dens: 3, colors: ['#a6e22e', '#9bd427', '#b3ec3f'] },
+  { name: 'fume',  dens: 0, how: 'acid eating something', colors: ['#6f8b34', '#7c9a3c', '#88a845'] },
 ];
 
 const rgb = (r, g, b) => (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
@@ -274,12 +325,21 @@ burn[PLANT] = 0.03;
 burn[SEED] = 0.04;
 burn[FLOWER] = 0.05;
 
+// Chance per bite that acid eats a material. Glass is left out on purpose:
+// it's the jar you keep acid in.
+const etch = new Float32Array(MAT.length);
+etch[SAND] = 0.3;
+etch[STONE] = 0.08;
+etch[OBSIDIAN] = 0.03;
+etch[PLANT] = etch[SEED] = etch[FLOWER] = 0.5;
+etch[ICE] = etch[SNOW] = 0.4;
+
 const hot = new Uint8Array(MAT.length);
 hot[FIRE] = hot[EMBER] = hot[LAVA] = 1;
 
 // Materials you can only get by making them, roughly easiest first. The
 // discoveries list tracks these, saved per browser.
-const SECRETS = [SMOKE, STEAM, GLASS, OBSIDIAN, EMBER, SNOW, FLOWER];
+const SECRETS = [SMOKE, STEAM, GLASS, OBSIDIAN, EMBER, SNOW, FUME, FLOWER];
 const secret = new Uint8Array(MAT.length);
 for (const t of SECRETS) secret[t] = 1;
 
@@ -345,6 +405,8 @@ function startLife(t) {
     case SMOKE: return 60 + rnd() * 80;
     case STEAM: return 80 + rnd() * 120;
     case ICE: return 24;
+    case ACID: return 10;
+    case FUME: return 40 + rnd() * 60;
     default: return 0;
   }
 }
@@ -508,7 +570,7 @@ function ember(i, x, y) {
   const j = ty * W + tx;
   if (j === i) return;
   const u = type[j];
-  const isOpen = u === E || u === SMOKE || u === STEAM;
+  const isOpen = u === E || u === SMOKE || u === STEAM || u === FUME;
   if (isOpen) swap(i, j);
   else life[i] = Math.max(1, l - 4); // stuck embers fade fast
 }
@@ -534,6 +596,26 @@ function snow(i, x, y) {
     if (n >= 0 && hot[type[n]] === 1 && rnd() < 0.2) { set(i, WATER); return; }
   }
   if (rnd() < 0.5) powder(i, x, y, SNOW);
+}
+
+// Acid takes a bite of one neighbour a tick, spending one of the bites it
+// carries in `life`; some of what it eats goes up as fume. Water dilutes it,
+// heat boils it off.
+function acid(i, x, y) {
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n >= 0) {
+    const u = type[n];
+    if (u === WATER && rnd() < 0.05) { set(i, WATER); return; }
+    if (hot[u] === 1 && rnd() < 0.3) { set(i, FUME, startLife(FUME)); return; }
+    if (rnd() < etch[u]) {
+      if (rnd() < 0.25) set(n, FUME, startLife(FUME));
+      else set(n, E);
+      const bites = life[i] - 1;
+      if (bites <= 0) { set(i, E); return; }
+      life[i] = bites;
+    }
+  }
+  liquid(i, x, y, ACID, 3);
 }
 
 // Plant sap at or above STEM marks a seedling's stem. Drinking water only
@@ -634,8 +716,10 @@ function step() {
         case SNOW: snow(i, x, y); break;
         case SEED: seed(i, x, y); break;
         case PLANT: plant(i, x, y); break;
+        case ACID: acid(i, x, y); break;
         case SMOKE:
-        case STEAM: gas(i, x, y, t); break;
+        case STEAM:
+        case FUME: gas(i, x, y, t); break;
       }
     }
   }
@@ -644,10 +728,10 @@ function step() {
 // --- panel -----------------------------------------------------------------
 
 const TOOLS = [
-  [SAND, '1'], [WATER, '2'], [OIL, '3'], [FIRE, '4'], [PLANT, '5'],
+  [SAND, '1'], [WATER, '2'], [OIL, '3'], [ACID, 'a'], [FIRE, '4'], [PLANT, '5'],
   [SEED, '6'], [STONE, '7'], [LAVA, '8'], [ICE, '9'], [E, '0'],
 ];
-const LOOSE = new Set([SAND, WATER, OIL, FIRE, LAVA, SEED]);
+const LOOSE = new Set([SAND, WATER, OIL, ACID, FIRE, LAVA, SEED]);
 
 let mat = SAND;
 let brush = 4;
@@ -727,9 +811,37 @@ function setCollapsed(c) {
   collapseEl.title = c ? 'unfold panel (n)' : 'fold panel (n)';
   collapseEl.setAttribute('aria-label', collapseEl.title);
   if (c) clearSearch();
-  try { localStorage.setItem(NAV_KEY, c ? 'collapsed' : 'open'); } catch {}
 }
-collapseEl.addEventListener('click', () => setCollapsed(!isCollapsed));
+
+// The fold state is saved only once the player picks one.
+const NAV_KEY = 'sand.nav';
+function toggleNav() {
+  setCollapsed(!isCollapsed);
+  try { localStorage.setItem(NAV_KEY, isCollapsed ? 'collapsed' : 'open'); } catch {}
+}
+collapseEl.addEventListener('click', toggleNav);
+
+// UI size scales the panel and the overlays (--ui). Until the player picks
+// one, it follows the window: 100% up to 900 px tall, up to 125% above that.
+const UI_KEY = 'sand.ui';
+const autoUi = () => Math.min(1.25, Math.max(1, innerHeight / 900));
+let ui = 1;
+function setUi(v) {
+  ui = Math.round(Math.min(2, Math.max(0.7, v)) * 20) / 20;
+  document.documentElement.style.setProperty('--ui', String(ui));
+  document.getElementById('ui-value').textContent = `${Math.round(ui * 100)}%`;
+}
+function nudgeUi(d) {
+  setUi(ui + d);
+  try { localStorage.setItem(UI_KEY, String(ui)); } catch {}
+}
+function resetUi() {
+  try { localStorage.removeItem(UI_KEY); } catch {}
+  setUi(autoUi());
+}
+document.getElementById('ui-down').addEventListener('click', () => nudgeUi(-0.1));
+document.getElementById('ui-up').addEventListener('click', () => nudgeUi(0.1));
+document.getElementById('ui-value').addEventListener('click', resetUi);
 
 let toastTimer = 0;
 function toast(text) {
@@ -802,16 +914,18 @@ function setPaused(p) {
 // ↑ ↑ ↓ ↓ ← → ← → b a toggles rainbow sand.
 const KONAMI = ['arrowup', 'arrowup', 'arrowdown', 'arrowdown', 'arrowleft', 'arrowright', 'arrowleft', 'arrowright', 'b', 'a'];
 let konami = 0;
+/** Returns true when the code completes. */
 function trackKonami(key) {
   if (key === KONAMI[konami]) konami++;
   else if (key === KONAMI[0]) konami = konami === 2 ? 2 : 1;
   else konami = 0;
-  if (konami < KONAMI.length) return;
+  if (konami < KONAMI.length) return false;
   konami = 0;
   isRainbow = !isRainbow;
   if (isRainbow) pick(SAND);
   toast(isRainbow ? 'rainbow sand' : 'plain sand again');
   showState();
+  return true;
 }
 
 // --- input -----------------------------------------------------------------
@@ -890,14 +1004,17 @@ cv.addEventListener('wheel', e => {
 addEventListener('keydown', e => {
   const isTyping = e.target === searchEl;
   if (e.ctrlKey || e.metaKey || e.altKey || isTyping) return;
-  trackKonami(e.key.toLowerCase());
+  if (trackKonami(e.key.toLowerCase())) return; // its last key, a, is also acid's
   const tool = TOOLS.find(([, key]) => key === e.key);
   if (tool) { pick(tool[0]); return; }
   switch (e.key) {
     case ' ': e.preventDefault(); setPaused(!paused); break;
     case 'c': clear(); break;
     case 'r': scene(); break;
-    case 'n': setCollapsed(!isCollapsed); break;
+    case 'n': toggleNav(); break;
+    case '-': nudgeUi(-0.1); break;
+    case '=':
+    case '+': nudgeUi(0.1); break;
     case '/': e.preventDefault(); setCollapsed(false); searchEl.focus(); break;
     case '[': setBrush(brush - 1); break;
     case ']': setBrush(brush + 1); break;
@@ -953,7 +1070,9 @@ function rect(x0, y0, x1, y1, t) {
 /** The starting scene, drawn on a 300 × 180 plan and stretched to the grid. Walls stay 3 cells thick. */
 function scene() {
   clear();
-  const X = v => Math.round((v / 300) * (W - 1));
+  // The plan's x runs from the panel's edge, so nothing starts out under it.
+  const x0 = Math.min(W >> 1, Math.ceil(navEl.getBoundingClientRect().right / (cv.clientWidth / W)));
+  const X = v => x0 + Math.round((v / 300) * (W - 1 - x0));
   const Y = v => Math.round((v / 180) * (H - 1));
   for (let x = 0; x < W; x++) {
     const u = (x / W) * 300;
@@ -1001,14 +1120,6 @@ function render() {
   ctx.stroke();
 }
 
-/** Scale the canvas to fit the stage, keeping its cells square. */
-function fit() {
-  const r = stageEl.getBoundingClientRect();
-  const s = Math.min(r.width / W, r.height / H);
-  cv.style.width = `${Math.floor(W * s)}px`;
-  cv.style.height = `${Math.floor(H * s)}px`;
-}
-
 const underEl = document.getElementById('under');
 let shownUnder = '';
 function showUnder() {
@@ -1034,9 +1145,21 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
-fit();
-new ResizeObserver(fit).observe(stageEl);
-setCollapsed(appEl.classList.contains('is-collapsed'));
+shapeGrid();
+// Reshaped once a resize settles; until then the canvas just stretches.
+let reshapeTimer = 0;
+new ResizeObserver(() => {
+  clearTimeout(reshapeTimer);
+  reshapeTimer = setTimeout(shapeGrid, 150);
+}).observe(stageEl);
+let savedUi = NaN, savedNav = null;
+try {
+  savedUi = parseFloat(localStorage.getItem(UI_KEY));
+  savedNav = localStorage.getItem(NAV_KEY);
+} catch {}
+setUi(savedUi > 0 ? savedUi : autoUi());
+// Folded by default where the open panel would cover too much.
+setCollapsed(savedNav === null ? innerWidth < 900 : savedNav === 'collapsed');
 showFound();
 pick(SAND);
 // About a fingertip across on screen, whatever the cell size.
