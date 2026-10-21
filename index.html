@@ -2,27 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<script>
-// The layout needs 640 × 480. A smaller screen (a phone) gets a layout
-// viewport that big, scaled down to fit, instead of a page that scrolls.
-// Desktop browsers ignore the viewport tag.
-(() => {
-  const meta = document.querySelector('meta[name="viewport"]');
-  const isPortrait = () => matchMedia('(orientation: portrait)').matches;
-  const long = Math.max(screen.width, screen.height), short = Math.min(screen.width, screen.height);
-  // Browser bars' height, read while the viewport is still 1:1.
-  const bars = Math.max(0, (isPortrait() ? long : short) - innerHeight);
-  function fitViewport() {
-    const w = isPortrait() ? short : long;
-    const h = (isPortrait() ? long : short) - bars;
-    const scale = Math.min(1, w / 640, h / 480);
-    meta.content = scale < 1 ? `width=${Math.ceil(w / scale)}` : 'width=device-width, initial-scale=1';
-  }
-  fitViewport();
-  screen.orientation?.addEventListener('change', fitViewport);
-})();
-</script>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Falling Sand</title>
 <meta name="description" content="A falling-sand toy. Pour sand, water, oil, acid, fire, lava, ice and seeds, and see what they make.">
 <meta name="theme-color" content="#0b0d12">
@@ -39,19 +19,33 @@
     --muted: #7d8496;
     --faint: #4d5363;
     --focus: #e9c46a;
-    --ui: 1; /* scales the panel and overlays; set by the script */
+    --ui: 1;  /* scales the panel and overlays; set by the script */
+    --fit: 1; /* scales the whole app into windows under 640 × 480; set by the script */
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
   html, body { margin: 0; background: var(--bg); color: var(--text); }
   html { overflow: hidden; }
-  @media (max-width: 639px), (max-height: 479px) { html { overflow: auto; } }
   body {
     font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
     -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none;
   }
 
-  .app { position: relative; width: 100vw; height: 100vh; min-width: 640px; min-height: 480px; overflow: hidden; }
+  .app {
+    position: absolute; left: 0; top: 0; overflow: hidden;
+    width: 100vw; height: 100vh; min-width: 640px; min-height: 480px; transform-origin: 0 0;
+  }
+
+  /* The sandbox runs under notches and camera cutouts; the panel and overlays
+     stay inside the screen's safe area. */
+  .safe {
+    position: absolute; pointer-events: none;
+    top: calc(env(safe-area-inset-top, 0px) / var(--fit));
+    right: calc(env(safe-area-inset-right, 0px) / var(--fit));
+    bottom: calc(env(safe-area-inset-bottom, 0px) / var(--fit));
+    left: calc(env(safe-area-inset-left, 0px) / var(--fit));
+  }
+  .safe > nav { pointer-events: auto; }
 
   /* The panel floats over the left of the sandbox, scaled by --ui. */
   nav {
@@ -158,6 +152,9 @@
 </head>
 <body>
 <div class="app">
+  <div class="stage"><canvas id="c"></canvas></div>
+
+  <div class="safe">
   <nav id="nav" aria-label="Tools">
     <div class="nav-head">
       <h1>Falling Sand</h1>
@@ -226,10 +223,8 @@
     <footer>Made by Claude in October 2026, in a thread given over just for fun.</footer>
   </nav>
 
-  <div class="stage">
-    <canvas id="c"></canvas>
-    <div class="hud"><span>under brush: <b id="under">—</b></span><span id="state"></span></div>
-    <div class="toast" id="toast" role="status"></div>
+  <div class="hud"><span>under brush: <b id="under">—</b></span><span id="state"></span></div>
+  <div class="toast" id="toast" role="status"></div>
   </div>
 </div>
 <script>
@@ -239,6 +234,19 @@ const appEl = document.querySelector('.app');
 const stageEl = document.querySelector('.stage');
 const cv = document.getElementById('c');
 const ctx = cv.getContext('2d');
+
+// The layout needs 640 × 480. A smaller window (a phone, a zoomed-in browser)
+// gets the app laid out at that size and scaled down to fit, not scrolled.
+function fitApp() {
+  const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+  const fit = Math.min(1, vw / 640, vh / 480);
+  appEl.style.width = `${vw / fit}px`;
+  appEl.style.height = `${vh / fit}px`;
+  appEl.style.transform = fit < 1 ? `scale(${fit})` : '';
+  document.documentElement.style.setProperty('--fit', String(fit));
+}
+fitApp();
+addEventListener('resize', fitApp);
 
 // The grid fills the stage, with cells of 3 px or more, as many as fit up to
 // MAX_CELLS. shapeGrid sets everything below.
@@ -252,10 +260,10 @@ let img, buf;
  * left; what no longer fits is lost. Cells can end up a hair off square.
  */
 function shapeGrid() {
-  const r = stageEl.getBoundingClientRect();
-  if (r.width === 0 || r.height === 0) return;
-  const cellPx = Math.max(3, Math.sqrt((r.width * r.height) / MAX_CELLS));
-  const w = Math.round(r.width / cellPx), h = Math.round(r.height / cellPx);
+  const sw = stageEl.clientWidth, sh = stageEl.clientHeight; // layout px, before the fit's scale
+  if (sw === 0 || sh === 0) return;
+  const cellPx = Math.max(3, Math.sqrt((sw * sh) / MAX_CELLS));
+  const w = Math.round(sw / cellPx), h = Math.round(sh / cellPx);
   if (w === W && h === H) return;
   const old = [type, life, clock, col, vel], oldW = W, oldH = H;
   W = w; H = h; N = W * H;
@@ -824,7 +832,7 @@ collapseEl.addEventListener('click', toggleNav);
 // UI size scales the panel and the overlays (--ui). Until the player picks
 // one, it follows the window: 100% up to 900 px tall, up to 125% above that.
 const UI_KEY = 'sand.ui';
-const autoUi = () => Math.min(1.25, Math.max(1, innerHeight / 900));
+const autoUi = () => Math.min(1.25, Math.max(1, appEl.clientHeight / 900));
 let ui = 1;
 function setUi(v) {
   ui = Math.round(Math.min(2, Math.max(0.7, v)) * 20) / 20;
@@ -1067,17 +1075,23 @@ function rect(x0, y0, x1, y1, t) {
       set(y * W + x, t, startLife(t));
 }
 
-/** The starting scene, drawn on a 300 × 180 plan and stretched to the grid. Walls stay 3 cells thick. */
+/**
+ * The starting scene, drawn on a 300 × 180 plan. The plan is scaled evenly to
+ * fit right of the panel, so nothing starts out under it, and stands on the
+ * bottom edge; the ground runs the full width. Walls stay 3 cells thick.
+ */
 function scene() {
   clear();
-  // The plan's x runs from the panel's edge, so nothing starts out under it.
-  const x0 = Math.min(W >> 1, Math.ceil(navEl.getBoundingClientRect().right / (cv.clientWidth / W)));
-  const X = v => x0 + Math.round((v / 300) * (W - 1 - x0));
-  const Y = v => Math.round((v / 180) * (H - 1));
+  const box = cv.getBoundingClientRect();
+  const x0 = Math.min(W >> 1, Math.ceil((navEl.getBoundingClientRect().right - box.left) / (box.width / W)));
+  const k = Math.min((W - 1 - x0) / 300, (H - 1) / 180);
+  const left = x0 + ((W - 1 - x0) - 300 * k) / 2, top = (H - 1) - 180 * k;
+  const X = v => Math.round(left + v * k);
+  const Y = v => Math.round(top + v * k);
   for (let x = 0; x < W; x++) {
-    const u = (x / W) * 300;
-    const top = Y(166) + Math.round((4 * Math.sin(u / 23) + 2 * Math.sin(u / 7)) * (H / 180));
-    rect(x, top, x, H - 1, SAND);
+    const u = (x - left) / k;
+    const ground = Y(166) + Math.round((4 * Math.sin(u / 23) + 2 * Math.sin(u / 7)) * k);
+    rect(x, ground, x, H - 1, SAND);
   }
   // Left basin: water under a layer of oil.
   const bl = X(30), br = X(110), bt = Y(92), bb = Y(136);
@@ -1159,11 +1173,12 @@ try {
 } catch {}
 setUi(savedUi > 0 ? savedUi : autoUi());
 // Folded by default where the open panel would cover too much.
-setCollapsed(savedNav === null ? innerWidth < 900 : savedNav === 'collapsed');
+const isCramped = navEl.offsetWidth * ui > appEl.clientWidth / 4;
+setCollapsed(savedNav === null ? isCramped : savedNav === 'collapsed');
 showFound();
 pick(SAND);
 // About a fingertip across on screen, whatever the cell size.
-setBrush(Math.max(2, Math.min(12, Math.round(15 / (cv.clientWidth / W)))));
+setBrush(Math.max(2, Math.min(12, Math.round(15 / (cv.getBoundingClientRect().width / W)))));
 setPaused(false);
 scene();
 requestAnimationFrame(frame);

@@ -50,18 +50,22 @@ found.
 
 ## Layout
 
-- Full window (`100vw` × `100vh`), never smaller than 640 × 480. The canvas
+- Full window, laid out at 640 × 480 or more. A smaller window (a phone, a
+  zoomed-in browser) gets the app laid out at 640 × 480 and scaled down to
+  fit by `fitApp()`, which sets `--fit`, rather than scrolled. The canvas
   fills all of it, with no margin or border.
+- The canvas runs under notches and camera cutouts (`viewport-fit=cover`).
+  The panel and overlays sit in `.safe`, inset by `env(safe-area-inset-*)`
+  divided by `--fit`.
 - A panel floats over the left of the sandbox and holds everything: search,
   materials, brush, ui size, world controls, discoveries, help. It scrolls on
   its own. `n` or the « button folds it to a 60 px rail of swatches. Until
-  the player picks, it starts folded in windows under 900 px wide; the pick
-  is kept in `sand.nav`.
-- `scene()` lays its plan out from the panel's right edge, so nothing starts
-  under it. Sand poured under the panel is still there, just covered.
+  the player picks, it starts folded when open it would cover more than a
+  quarter of the width; the pick is kept in `sand.nav`.
+- Sand poured under the panel is still there, just covered.
 - UI size (`-` / `=`, or the − + buttons) scales the panel, the strip and
   the toast through the `--ui` CSS variable, using `transform: scale`. Until
-  the player picks, it follows the window: 100% up to 900 px tall, up to 125%
+  the player picks, it follows the layout: 100% up to 900 px tall, up to 125%
   above that. Clicking the percentage goes back to automatic. Kept in
   `sand.ui`.
 - Search (`/`) filters every panel item by name and description. Enter picks
@@ -72,34 +76,38 @@ found.
 
 ## Screens and touch
 
-- The grid fills the stage with cells of 3 px or more, as many as fit up to
-  `MAX_CELLS` (54,000). Measured: 640×480 gives 213×160 at 3 px per cell,
-  900×700 gives 263×205 at 3.4 px, 1280×960 gives 268×201 at 4.8 px.
+- The grid fills the stage with cells of 3 layout px or more, as many as fit
+  up to `MAX_CELLS` (54,000). Measured: 640×480 gives 213×160 at 3 px per
+  cell, 900×700 gives 263×205 at 3.4 px, 1280×960 gives 268×201 at 4.8 px.
 - When the stage changes size, `shapeGrid()` runs once the resize settles
   (150 ms) and builds a new grid. Content keeps its place from the bottom
   left; whatever no longer fits is lost. Above about 800×600 the cell count
   is at the cap, so resizing mostly rescales cells: 1280×960 down to 900×700
   and back kept 99% of a scene. Until then the canvas stretches, and cells
   can end up a hair off square.
-- `scene()` is drawn on a 300×180 plan and stretched, with walls kept 3
-  cells thick.
+- `scene()` is drawn on a 300×180 plan, scaled evenly to fit right of the
+  panel and standing on the bottom edge, with walls kept 3 cells thick. The
+  ground runs the full width. In portrait that leaves open sky above.
 - `pointers` holds one stroke per finger, so several fingers pour at once.
   The starting brush is about 15 px across on screen, whatever the cell
   size.
 - Touch screens (`hover: none` and `pointer: coarse`) get 40 px buttons, no
   key labels and their own help line.
-- Screens smaller than 640 × 480 (phones) get a viewport tag with a layout
-  width that makes room for 640 × 480, and the browser scales the page down
-  to fit. It's worked out from `screen` and the browser bars' height, read at
-  load, and redone on rotation. A phone in portrait gets `width=640`.
-  Desktop browsers ignore the tag, so this has only been worked through on
-  paper, not tried on a real phone.
-- The layout was checked in Brave at 640×480, and in iframes resized
-  between 900×700 and 1280×960.
+- A Pixel 8 running the installed app gave the page only about 528 × 247 CSS
+  px in landscape, likely from zoom or a large display size. The first
+  layout overflowed it: the panel filled the view and the canvas sat off
+  screen. A viewport-tag fix was tried next, but it relied on `screen`,
+  which zoom skews, and desktop browsers can't test it; scaling the app in
+  script replaced it.
+- Checked in Brave at 640×480, in iframes resized between 900×700 and
+  1280×960, and at 528×247 and 247×528. At 528×247 the app lays out at
+  1026×480, scaled by 0.51, and a drag pours under the pointer. Not yet seen
+  on the phone itself.
 
 ## App
 
-- `manifest.webmanifest`: name, standalone display, dark theme, icons. All
+- `manifest.webmanifest`: name, fullscreen display (no status or navigation
+  bar on phones; desktop falls back to a window), dark theme, icons. All
   paths are relative, so it works served from any subfolder.
 - `sw.js` is network first: online, every file comes fresh and refreshes the
   cached copy; offline, the copy. There's no stale version to wait out after a
