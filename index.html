@@ -218,21 +218,21 @@
 
   <div class="safe">
   <nav id="rail" aria-label="Tools">
-    <button class="rail-btn" id="menu-btn" aria-controls="menu" aria-expanded="false" title="menu">
-      <span class="face"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span><span class="name">menu</span>
+    <button type="button" class="rail-btn" id="menu-btn" aria-controls="menu" aria-expanded="false" title="menu">
+      <span class="face"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span><span class="name">menu</span>
     </button>
     <div id="slots">
-      <button class="rail-btn" id="all" aria-controls="materials" aria-expanded="false" title="all materials (/)">
-        <span class="face"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></span><span class="name">all</span>
+      <button type="button" class="rail-btn" id="all" aria-controls="materials" aria-expanded="false" title="all materials (/)">
+        <span class="face"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></span><span class="name">all</span>
       </button>
     </div>
-    <button class="rail-btn" id="erase-btn" aria-pressed="false" title="erase (e)">
-      <span class="face"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-9 9h-5l-2.5-2.5a1.5 1.5 0 0 1 0-2z"/><path d="M8.5 10.5l5 5"/><path d="M13 18.5h7"/></svg></span><span class="name">erase</span>
+    <button type="button" class="rail-btn" id="erase-btn" aria-pressed="false" title="erase (e)">
+      <span class="face"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M14.5 4.5l5 5-9 9h-5l-2.5-2.5a1.5 1.5 0 0 1 0-2z"/><path d="M8.5 10.5l5 5"/><path d="M13 18.5h7"/></svg></span><span class="name">erase</span>
     </button>
-    <button class="rail-btn" id="size-btn" aria-controls="sizes" aria-expanded="false" title="brush size ([ ])">
+    <button type="button" class="rail-btn" id="size-btn" aria-controls="sizes" aria-expanded="false" title="brush size ([ ])">
       <span class="face"><span class="dot" id="size-dot"></span></span><span class="name">size</span>
     </button>
-    <button class="rail-btn" id="pause" title="pause (space)">
+    <button type="button" class="rail-btn" id="pause" title="pause (space)">
       <span class="face"></span><span class="name"></span>
     </button>
   </nav>
@@ -243,7 +243,7 @@
         <input id="search" type="search" placeholder="search" aria-label="Search materials and discoveries" autocomplete="off" spellcheck="false">
         <kbd class="fine-only">/</kbd>
       </label>
-      <button class="close" aria-label="close">×</button>
+      <button type="button" class="close" aria-label="close">×</button>
     </div>
     <p class="nomatch" id="nomatch" hidden>nothing matches</p>
     <div id="groups"></div>
@@ -258,16 +258,16 @@
   </div>
 
   <div class="sheet" id="menu" role="dialog" aria-label="Menu" hidden>
-    <div class="sheet-head"><h1>Falling Sand</h1><button class="close" aria-label="close">×</button></div>
+    <div class="sheet-head"><h1>Falling Sand</h1><button type="button" class="close" aria-label="close">×</button></div>
     <div class="list">
-      <button id="scene"><span class="label">new scene <small>a different one each time</small></span><kbd>r</kbd></button>
-      <button id="clear"><span class="label">clear <small>empty the whole world</small></span><kbd>c</kbd></button>
+      <button type="button" id="scene"><span class="label">new scene <small>a different one each time</small></span><kbd>r</kbd></button>
+      <button type="button" id="clear"><span class="label">clear <small>empty the whole world</small></span><kbd>c</kbd></button>
     </div>
     <div class="ui-size">
       <span>ui size</span>
-      <button id="ui-down" aria-label="smaller" title="smaller (-)">−</button>
-      <button id="ui-value" title="back to automatic"></button>
-      <button id="ui-up" aria-label="bigger" title="bigger (=)">+</button>
+      <button type="button" id="ui-down" aria-label="smaller" title="smaller (-)">−</button>
+      <button type="button" id="ui-value" title="back to automatic"></button>
+      <button type="button" id="ui-up" aria-label="bigger" title="bigger (=)">+</button>
     </div>
     <div class="help">
       <span class="fine-only">drag to pour · right-drag to erase</span>
@@ -1366,7 +1366,7 @@ function saveSlots() {
 
 const slotEls = [];
 for (let k = 0; k < SLOT_MAX; k++) {
-  const b = document.createElement('button');
+  const b = Object.assign(document.createElement('button'), { type: 'button' });
   b.className = 'rail-btn';
   b.innerHTML = '<span class="face"></span><span class="name"></span>';
   b.addEventListener('click', () => { pick(slots[k]); closeSheet(); });
@@ -1439,7 +1439,7 @@ for (const [t, group, tip] of TOOLS) {
     document.getElementById('groups').append(section);
     tilesEl = section.querySelector('.tiles');
   }
-  const b = document.createElement('button');
+  const b = Object.assign(document.createElement('button'), { type: 'button' });
   b.className = 'tile';
   b.innerHTML = '<span class="sw"></span><span class="label"><small></small></span>';
   b.querySelector('.sw').style.backgroundImage = swatches[t];
@@ -1554,7 +1554,7 @@ let toastTimer = 0;
 function toast(text, action = null) {
   toastEl.replaceChildren(text);
   if (action !== null) {
-    const b = document.createElement('button');
+    const b = Object.assign(document.createElement('button'), { type: 'button' });
     b.textContent = action.label;
     b.addEventListener('click', () => { toastEl.classList.remove('is-shown'); action.run(); });
     toastEl.append(b);
@@ -1751,7 +1751,7 @@ const widthToRadius = px => clamp(Math.round((px / cellPx() - 1) / 2), 0, 30);
 const dotFor = px => clamp(Math.round(4 + px / 2.7), 5, 26); // the dot that stands for a brush px wide
 const sizeDotEl = document.getElementById('size-dot');
 const sizeBtns = SIZES.map(px => {
-  const b = document.createElement('button');
+  const b = Object.assign(document.createElement('button'), { type: 'button' });
   b.setAttribute('aria-label', `brush ${px} px across`);
   b.innerHTML = '<span class="dot"></span>';
   b.firstChild.style.width = b.firstChild.style.height = `${dotFor(px)}px`;
@@ -1782,8 +1782,8 @@ function showState() {
   showHud();
 }
 
-const PAUSE_ICON = '<svg viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>';
-const PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8.5 5.5v13l10-6.5z"/></svg>';
+const PAUSE_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M9 6v12M15 6v12"/></svg>';
+const PLAY_ICON = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8.5 5.5v13l10-6.5z"/></svg>';
 function setPaused(p) {
   paused = p;
   pauseEl.querySelector('.face').innerHTML = p ? PLAY_ICON : PAUSE_ICON;
@@ -1929,7 +1929,7 @@ addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
   installOffer = e;
   if (document.getElementById('install')) return;
-  const b = document.createElement('button');
+  const b = Object.assign(document.createElement('button'), { type: 'button' });
   b.id = 'install';
   b.innerHTML = '<span class="label">install <small>play offline, own window</small></span>';
   b.addEventListener('click', async () => {
