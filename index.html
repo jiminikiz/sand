@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Falling Sand</title>
-<meta name="description" content="A falling-sand toy. Pour sand, water, oil, acid, fire, lava, ice and seeds, and see what they make.">
+<meta name="description" content="A falling-sand toy. Pour sand, water, oil, acid and lava, light fires, strike lightning, and see what they make.">
 <meta name="theme-color" content="#0b0d12">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
@@ -168,22 +168,7 @@
 
     <section class="group materials">
       <h2>materials</h2>
-      <div class="list" id="tools">
-        <button data-mat="sand" data-find><span class="sw"></span><span class="label">sand <small>powder, sinks in liquid</small></span><kbd>1</kbd></button>
-        <button data-mat="water" data-find><span class="sw"></span><span class="label">water <small>douses fire, quenches lava</small></span><kbd>2</kbd></button>
-        <button data-mat="oil" data-find><span class="sw"></span><span class="label">oil <small>floats on water, burns slow</small></span><kbd>3</kbd></button>
-        <button data-mat="acid" data-find><span class="sw"></span><span class="label">acid <small>eats all but glass</small></span><kbd>a</kbd></button>
-        <button data-mat="fire" data-find><span class="sw"></span><span class="label">fire <small>burns fuel, throws embers</small></span><kbd>4</kbd></button>
-        <button data-mat="plant" data-find><span class="sw"></span><span class="label">plant <small>drinks water and grows</small></span><kbd>5</kbd></button>
-        <button data-mat="seed" data-find><span class="sw"></span><span class="label">seed <small>sprouts on wet sand</small></span><kbd>6</kbd></button>
-        <button data-mat="stone" data-find><span class="sw"></span><span class="label">stone <small>stays put</small></span><kbd>7</kbd></button>
-        <button data-mat="lava" data-find><span class="sw"></span><span class="label">lava <small>lights fuel, melts sand</small></span><kbd>8</kbd></button>
-        <button data-mat="ice" data-find><span class="sw"></span><span class="label">ice <small>freezes water, fears heat</small></span><kbd>9</kbd></button>
-        <button data-mat="snow" data-find><span class="sw"></span><span class="label">snow <small>floats on water, thaws</small></span><kbd>s</kbd></button>
-        <button data-mat="glass" data-find><span class="sw"></span><span class="label">glass <small>holds acid, stays put</small></span><kbd>g</kbd></button>
-        <button data-mat="obsidian" data-find><span class="sw"></span><span class="label">obsidian <small>stone that acid barely eats</small></span><kbd>o</kbd></button>
-        <button data-mat="empty" data-find="erase empty rub out 0"><span class="sw erase"></span><span class="label">erase <small>rub things out</small></span><kbd>0</kbd></button>
-      </div>
+      <div class="list" id="tools"></div>
     </section>
 
     <section class="group">
@@ -255,7 +240,7 @@ addEventListener('resize', fitApp);
 // MAX_CELLS. shapeGrid sets everything below.
 const MAX_CELLS = 54000;
 let W = 0, H = 0, N = 0;
-let type, life, clock, col, vel; // per cell; vel is an ember's heading, -1 left or 1 right
+let type, life, clock, col, aux; // per cell; see "materials" for what life and aux hold
 let img, buf;
 
 /**
@@ -268,19 +253,20 @@ function shapeGrid() {
   const cellPx = Math.max(3, Math.sqrt((sw * sh) / MAX_CELLS));
   const w = Math.round(sw / cellPx), h = Math.round(sh / cellPx);
   if (w === W && h === H) return;
-  const old = [type, life, clock, col, vel], oldW = W, oldH = H;
+  const old = [type, life, clock, col, aux], oldW = W, oldH = H;
   W = w; H = h; N = W * H;
   type = new Uint8Array(N);
   life = new Uint8Array(N);
   clock = new Uint8Array(N);
   col = new Uint32Array(N).fill(BG);
-  vel = new Int8Array(N);
-  const now = [type, life, clock, col, vel];
+  aux = new Int8Array(N);
+  const now = [type, life, clock, col, aux];
   const keepW = Math.min(W, oldW), keepH = Math.min(H, oldH);
   for (let y = 1; y <= keepH; y++) {
     const from = (oldH - y) * oldW, to = (H - y) * W;
     for (let a = 0; a < now.length; a++) now[a].set(old[a].subarray(from, from + keepW), to);
   }
+  blasts.length = 0; // their cells moved
   cv.width = W; cv.height = H;
   img = ctx.createImageData(W, H);
   buf = new Uint32Array(img.data.buffer);
@@ -290,70 +276,108 @@ function shapeGrid() {
 
 const E = 0, STONE = 1, SAND = 2, WATER = 3, OIL = 4, FIRE = 5, PLANT = 6, SMOKE = 7, STEAM = 8, LAVA = 9,
   GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16, ACID = 17, FUME = 18,
-  RAIN = 19;
+  RAIN = 19, ASH = 20, ACID_RAIN = 21, SALT = 22, BRINE = 23, WOOD = 24, PUMICE = 25, METAL = 26, RUST = 27,
+  HYDROGEN = 28, GUNPOWDER = 29, LIGHTNING = 30, CLOUD = 31, CLONE = 32, DRAIN = 33, BEE = 34, HONEY = 35;
 
-// `how` is the recipe a discovery shows once it has been made.
+// One entry per material, in id order, giving only what applies:
+//   dens      a mover sinks through anything movable that's lighter
+//   fixed     holds its place; nothing sinks through it
+//   airy      open air to what flies or falls: empty, the gases, cloud
+//   act       its update each tick; a material without one is skipped
+//   life      what `life` starts at: a number, or a [min, max) range
+//   burn      chance per tick that a burning neighbour lights it
+//   flame     how long it burns, [min, max) ticks; ash: chance it leaves ash
+//   blast     goes off with this radius instead of burning
+//   hold      chance it stands through a blast
+//   etch      chance per bite that acid eats it
+//   hot       melts ice and snow, boils acid off
+//   condense  what a fading gas turns into, half the time
+//   how       the recipe; a material with one is a discovery
+//
+// `life` means something per material: how long fire, smoke, steam, fume,
+// hydrogen and lightning last; plant sap; ice's cold; acid's bites; an
+// ember's flight; a cloud's water; a bee's pollen; what a clone pours; what a
+// flower has given. `aux` is an ember's or a bee's heading, or for fire, 1
+// if it leaves ash.
 const MAT = [
-  { name: 'empty', dens: 1, colors: ['#0d0f14'] },
-  { name: 'stone', dens: 9, colors: ['#5b5e66', '#63666f', '#55585f', '#6a6d75'] },
-  { name: 'sand',  dens: 5, colors: ['#e2c27d', '#d8b56b', '#eccd8a', '#cfa95e'] },
-  { name: 'water', dens: 3, colors: ['#2f6fd6', '#3477e0', '#2b68cc'] },
-  { name: 'oil',   dens: 2, colors: ['#5e4226', '#684a2b', '#533a21'] },
-  { name: 'fire',  dens: 0, colors: ['#ff6a00'] },
-  { name: 'plant', dens: 9, how: 'a seed on wet sand', colors: ['#3f9b3a', '#48a843', '#378a33', '#52b54b'] },
-  { name: 'smoke', dens: 0, how: 'fire dying out, or doused', colors: ['#8a8f9a'] }, // drawn from smokePal
-  { name: 'steam', dens: 0, how: 'water on fire, lava or embers', colors: ['#c9d6e8', '#d5e0ee', '#bccbe0'] },
-  { name: 'lava',  dens: 4, colors: ['#ff5a1f', '#ff7b26', '#e8401a', '#ff9a3c'] },
-  { name: 'glass', dens: 9, how: 'lava melting sand', colors: ['#9fd3dc', '#aedbe3', '#93c8d2', '#b9e3ea', '#a3d6df', '#e8fbff'] },
-  { name: 'obsidian', dens: 9, how: 'water quenching lava', colors: ['#3c3150', '#31283f', '#372d47', '#2d2540', '#2a2238', '#7d6a9c'] },
-  { name: 'ember', dens: 0, how: 'thrown by fire with fuel under it', colors: ['#ffb43a'] },
-  { name: 'ice',   dens: 9, colors: ['#c3e2fb', '#b6d9f6', '#cfe8fc', '#bcdcf8'] },
-  { name: 'snow',  dens: 2, how: 'steam touching ice', colors: ['#eef3fa', '#e2eaf5', '#f7f9fc'] },
-  { name: 'seed',  dens: 4, colors: ['#8c8a3e', '#7d7b35', '#9a9848'] },
-  { name: 'flower', dens: 9, how: 'a sprouted seed, given time', colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
-  { name: 'acid',  dens: 3, colors: ['#a6e22e', '#9bd427', '#b3ec3f'] },
-  { name: 'fume',  dens: 0, how: 'acid eating something', colors: ['#6f8b34', '#7c9a3c', '#88a845'] },
-  { name: 'rain',  dens: 3, how: 'steam cooling off', colors: ['#6f9ce6', '#7ea8ec', '#8cb4f0'] },
+  { name: 'empty', dens: 1, airy: true, colors: ['#0d0f14'] },
+  { name: 'stone', dens: 9, fixed: true, hold: 0.6, etch: 0.08, colors: ['#5b5e66', '#63666f', '#55585f', '#6a6d75'] },
+  { name: 'sand', dens: 5, act: powder, etch: 0.3, colors: ['#e2c27d', '#d8b56b', '#eccd8a', '#cfa95e'] },
+  { name: 'water', dens: 3, act: water, colors: ['#2f6fd6', '#3477e0', '#2b68cc'] },
+  { name: 'oil', dens: 2, act: (i, x, y, t) => liquid(i, x, y, t, 3), burn: 0.06, flame: [60, 140],
+    colors: ['#5e4226', '#684a2b', '#533a21'] },
+  { name: 'fire', dens: 0, fixed: true, act: fire, life: [30, 80], hot: true, colors: ['#ff6a00'] }, // drawn from firePal
+  { name: 'plant', dens: 9, fixed: true, act: plant, burn: 0.03, ash: 0.3, etch: 0.5, how: 'a seed on wet sand',
+    colors: ['#3f9b3a', '#48a843', '#378a33', '#52b54b'] },
+  { name: 'smoke', dens: 0, airy: true, act: smoke, life: [60, 140], how: 'fire dying out, or doused',
+    colors: ['#8a8f9a'] }, // drawn from smokePal
+  { name: 'steam', dens: 0, airy: true, act: steam, life: [80, 200], condense: RAIN, how: 'water on fire, lava or embers',
+    colors: ['#c9d6e8', '#d5e0ee', '#bccbe0'] },
+  { name: 'lava', dens: 4, act: lava, hot: true, colors: ['#ff5a1f', '#ff7b26', '#e8401a', '#ff9a3c'] },
+  { name: 'glass', dens: 9, fixed: true, hold: 0.15, how: 'lava or lightning melting sand',
+    colors: ['#9fd3dc', '#aedbe3', '#93c8d2', '#b9e3ea', '#a3d6df', '#e8fbff'] },
+  { name: 'obsidian', dens: 9, fixed: true, hold: 0.9, etch: 0.03, how: 'water quenching lava',
+    colors: ['#3c3150', '#31283f', '#372d47', '#2d2540', '#2a2238', '#7d6a9c'] },
+  { name: 'ember', dens: 0, act: ember, hot: true, how: 'thrown by fire on fuel, or a blast',
+    colors: ['#ffb43a'] }, // drawn from emberPal
+  { name: 'ice', dens: 9, fixed: true, act: ice, life: 24, hold: 0.3, etch: 0.4,
+    colors: ['#c3e2fb', '#b6d9f6', '#cfe8fc', '#bcdcf8'] },
+  { name: 'snow', dens: 2, act: snow, etch: 0.4, how: 'steam touching ice', colors: ['#eef3fa', '#e2eaf5', '#f7f9fc'] },
+  { name: 'seed', dens: 4, act: seed, burn: 0.04, ash: 0.3, etch: 0.5, colors: ['#8c8a3e', '#7d7b35', '#9a9848'] },
+  { name: 'flower', dens: 9, fixed: true, act: flower, burn: 0.05, ash: 0.3, etch: 0.5, how: 'a sprouted seed, given time',
+    colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
+  { name: 'acid', dens: 3, act: acid, life: 10, colors: ['#a6e22e', '#9bd427', '#b3ec3f'] },
+  { name: 'fume', dens: 0, airy: true, act: gas, life: [40, 100], condense: ACID_RAIN, how: 'acid eating something',
+    colors: ['#6f8b34', '#7c9a3c', '#88a845'] },
+  { name: 'rain', dens: 3, act: rain, how: 'steam cooling off', colors: ['#6f9ce6', '#7ea8ec', '#8cb4f0'] },
+  { name: 'ash', dens: 4.5, act: powder, etch: 0.4, how: 'wood or plants burnt down',
+    colors: ['#6b6763', '#77736e', '#5f5b57', '#837e78'] },
+  { name: 'acid rain', dens: 3, act: rain, how: 'fume cooling off', colors: ['#c4f25a', '#b8e84a', '#d0f870'] },
+  { name: 'salt', dens: 5, act: salt, etch: 0.3, colors: ['#f2f2ee', '#e6e6e0', '#fafaf6', '#dcdcd6'] },
+  { name: 'brine', dens: 3.5, act: water, how: 'salt in water', colors: ['#2b86a8', '#3191b3', '#27799b'] },
+  { name: 'wood', dens: 9, fixed: true, burn: 0.02, flame: [80, 160], ash: 0.6, hold: 0.4, etch: 0.3,
+    colors: ['#7a5230', '#6e4a2b', '#865b36', '#5f3f24'] },
+  { name: 'pumice', dens: 2.5, act: powder, etch: 0.15, how: 'lava frothing on ice',
+    colors: ['#b9b2a6', '#c4bdb1', '#aea79b', '#cfc8bc'] },
+  { name: 'metal', dens: 9, fixed: true, act: metal, hold: 0.9, etch: 0.15,
+    colors: ['#8d96a3', '#9aa3b0', '#7f8894', '#a7b0bc'] },
+  { name: 'rust', dens: 5, act: powder, etch: 0.5, how: 'metal left in water',
+    colors: ['#9c4a1f', '#b0572a', '#8a3f19', '#c06a35'] },
+  { name: 'hydrogen', dens: 0, airy: true, act: gas, life: [150, 250], burn: 0.6, blast: 2, how: 'acid eating metal',
+    colors: ['#1d2633', '#222c3a', '#334359'] },
+  { name: 'gunpowder', dens: 5, act: powder, burn: 0.5, blast: 5, etch: 0.3,
+    colors: ['#3a3a3f', '#2f2f33', '#46464b', '#55555a'] },
+  { name: 'lightning', dens: 0, fixed: true, act: flash, life: [6, 14], hot: true,
+    colors: ['#fffbe6', '#eef4ff', '#fff2b8'] },
+  { name: 'cloud', dens: 0, airy: true, act: cloud, life: [2, 6], how: 'steam piling up against the sky',
+    colors: ['#c9cfd8'] }, // drawn from cloudPal
+  { name: 'clone', dens: 9, fixed: true, act: clone, hold: 1, colors: ['#c04fd8'] },
+  { name: 'drain', dens: 9, fixed: true, act: drain, hold: 1, colors: ['#3d2356', '#2a173c', '#331d49'] },
+  { name: 'bee', dens: 0, act: bee, burn: 0.3, etch: 0.6, how: 'a patch of flowers',
+    colors: ['#f5c518', '#2a2210', '#f5c518'] }, // stripes as it flies; the last is its swatch
+  { name: 'honey', dens: 3.8, act: honey, etch: 0.3, how: 'bees carrying pollen',
+    colors: ['#e09b1a', '#d68f12', '#eaa82a', '#c98410'] },
 ];
 
 const rgb = (r, g, b) => (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
 const hex = h => rgb(parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16));
 const shades = MAT.map(m => Uint32Array.from(m.colors, hex));
-const dens = Int8Array.from(MAT, m => m.dens);
+const dens = Float32Array.from(MAT, m => m.dens);
+const movable = Uint8Array.from(MAT, m => (m.fixed ? 0 : 1));
+const airy = Uint8Array.from(MAT, m => (m.airy ? 1 : 0));
+const burn = Float32Array.from(MAT, m => m.burn ?? 0);
+const etch = Float32Array.from(MAT, m => m.etch ?? 0);
+const hot = Uint8Array.from(MAT, m => (m.hot ? 1 : 0));
+const acts = MAT.map(m => m.act ?? null);
 const BG = shades[E][0];
 const FLOWER_HEART = hex('#ffd34d');
-
-// These hold their place; everything else can be pushed aside by something denser.
-const movable = new Uint8Array(MAT.length).fill(1);
-for (const t of [STONE, PLANT, GLASS, OBSIDIAN, ICE, FLOWER]) movable[t] = 0;
-
-// Nothing to simulate: the step loop skips these.
-const inert = new Uint8Array(MAT.length);
-for (const t of [E, STONE, GLASS, OBSIDIAN, FLOWER]) inert[t] = 1;
-
-// Chance per tick that a burning neighbour catches this material.
-const burn = new Float32Array(MAT.length);
-burn[OIL] = 0.06;
-burn[PLANT] = 0.03;
-burn[SEED] = 0.04;
-burn[FLOWER] = 0.05;
-
-// Chance per bite that acid eats a material. Glass is left out on purpose:
-// it's the jar you keep acid in.
-const etch = new Float32Array(MAT.length);
-etch[SAND] = 0.3;
-etch[STONE] = 0.08;
-etch[OBSIDIAN] = 0.03;
-etch[PLANT] = etch[SEED] = etch[FLOWER] = 0.5;
-etch[ICE] = etch[SNOW] = 0.4;
-
-const hot = new Uint8Array(MAT.length);
-hot[FIRE] = hot[EMBER] = hot[LAVA] = 1;
+const SOOT = hex('#2f2b27');
 
 // Materials you can only get by making them, roughly easiest first. The
 // discoveries list tracks these, saved per browser. Those in TOOLS join the
 // materials once found.
-const SECRETS = [SMOKE, STEAM, RAIN, PLANT, GLASS, OBSIDIAN, EMBER, SNOW, FUME, FLOWER];
+const SECRETS = [SMOKE, STEAM, RAIN, ASH, PLANT, GLASS, BRINE, OBSIDIAN, EMBER, SNOW, FUME, FLOWER, PUMICE,
+  RUST, HYDROGEN, ACID_RAIN, CLOUD, BEE, HONEY];
 const secret = new Uint8Array(MAT.length);
 for (const t of SECRETS) secret[t] = 1;
 
@@ -362,7 +386,9 @@ let found = new Set();
 try { found = new Set(JSON.parse(localStorage.getItem(FOUND_KEY) || '[]')); } catch {}
 
 const firePal = new Uint32Array(256);
+const emberPal = new Uint32Array(256);
 const smokePal = new Uint32Array(256);
+const cloudPal = new Uint32Array(256);
 for (let l = 0; l < 256; l++) {
   const t = Math.min(1, l / 70);
   firePal[l] = rgb(
@@ -372,6 +398,22 @@ for (let l = 0; l < 256; l++) {
   );
   const s = Math.min(1, l / 100);
   smokePal[l] = rgb(Math.round(13 + 77 * s), Math.round(15 + 79 * s), Math.round(20 + 84 * s));
+  const w = Math.min(1, l / 12); // a cloud darkens with the water it holds
+  cloudPal[l] = rgb(Math.round(214 - 120 * w), Math.round(220 - 118 * w), Math.round(228 - 112 * w));
+}
+for (let l = 0; l < 256; l++) emberPal[l] = firePal[Math.min(255, l + 20)];
+
+// These are drawn by `life` from a palette instead of from `col`.
+const pal = MAT.map(() => null);
+pal[FIRE] = firePal;
+pal[EMBER] = emberPal;
+pal[SMOKE] = smokePal;
+pal[CLOUD] = cloudPal;
+
+/** Blends packed colour a toward b by f. */
+function mix(a, b, f) {
+  const ch = s => Math.round(((a >>> s) & 255) * (1 - f) + ((b >>> s) & 255) * f);
+  return rgb(ch(0), ch(8), ch(16));
 }
 
 /** A pastel from the colour wheel, h in [0, 1). HSL with s 0.75, l 0.65. */
@@ -392,8 +434,13 @@ function rnd() {
   return (rngState >>> 0) / 4294967296;
 }
 const dir = () => (rnd() < 0.5 ? -1 : 1);
+const between = (a, b) => a + rnd() * (b - a);
+const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+const isWater = u => u === WATER || u === BRINE;
 
 let tick = 1;
+let drift = 1;      // which way clouds drift; it turns now and then
+const blasts = [];  // [cell, radius] pairs, set off once the tick's scan is done
 
 /** Puts a cell down without discovering it: a scene, or more of something already there. */
 function place(i, t, l = 0) {
@@ -401,7 +448,7 @@ function place(i, t, l = 0) {
   life[i] = l;
   const s = shades[t];
   col[i] = s[(rnd() * s.length) | 0];
-  vel[i] = 0;
+  aux[i] = 0;
   clock[i] = tick;
 }
 
@@ -415,20 +462,14 @@ function swap(i, j) {
   const t = type[i]; type[i] = type[j]; type[j] = t;
   const l = life[i]; life[i] = life[j]; life[j] = l;
   const c = col[i]; col[i] = col[j]; col[j] = c;
-  const v = vel[i]; vel[i] = vel[j]; vel[j] = v;
+  const a = aux[i]; aux[i] = aux[j]; aux[j] = a;
   clock[i] = clock[j] = tick;
 }
 
 function startLife(t) {
-  switch (t) {
-    case FIRE: return 30 + rnd() * 50;
-    case SMOKE: return 60 + rnd() * 80;
-    case STEAM: return 80 + rnd() * 120;
-    case ICE: return 24;
-    case ACID: return 10;
-    case FUME: return 40 + rnd() * 60;
-    default: return 0;
-  }
+  const range = MAT[t].life ?? 0;
+  if (typeof range === 'number') return range;
+  return between(range[0], range[1]);
 }
 
 /** The one density rule: a mover displaces anything movable that is lighter. */
@@ -447,9 +488,76 @@ function nb(i, x, y, k) {
   }
 }
 
+/** Calls f(i, dx, dy) for each grid cell within r of (cx, cy). */
+function disc(cx, cy, r, f) {
+  for (let dy = -r; dy <= r; dy++) {
+    const y = cy + dy;
+    if (y < 0 || y >= H) continue;
+    for (let dx = -r; dx <= r; dx++) {
+      const x = cx + dx;
+      const isOn = x >= 0 && x < W && dx * dx + dy * dy <= r * r;
+      if (isOn) f(y * W + x, dx, dy);
+    }
+  }
+}
+
+/** Sets fuel alight. Fuel with a blast is lit and goes off at the end of the tick. */
 function ignite(n) {
-  const isOil = type[n] === OIL;
-  set(n, FIRE, isOil ? 60 + rnd() * 80 : 30 + rnd() * 40);
+  const m = MAT[type[n]];
+  if (m.blast !== undefined) {
+    set(n, FIRE, between(4, 12));
+    blasts.push(n, m.blast);
+    return;
+  }
+  const [lo, hi] = m.flame ?? [30, 70];
+  const leavesAsh = rnd() < (m.ash ?? 0);
+  set(n, FIRE, between(lo, hi));
+  aux[n] = leavesAsh ? 1 : 0;
+}
+
+/**
+ * Blows a round hole of radius r at cell c. Loose cells are flung out past
+ * the rim, fixed ones may hold, fuel catches, and the hole is left in flames
+ * that throw embers. Anything in it with a blast of its own is only lit, and
+ * goes off from there.
+ */
+function blast(c, r) {
+  const cx = c % W, cy = (c - cx) / W;
+  disc(cx, cy, r, (i, dx, dy) => {
+    const u = type[i], m = MAT[u];
+    const isFlung = movable[u] === 1 && airy[u] === 0;
+    if (m.blast !== undefined) set(i, FIRE, between(4, 12));
+    else if (rnd() < (m.hold ?? 0)) return;
+    else if (burn[u] > 0) ignite(i);
+    else if (isFlung) fling(i, cx, cy, dx, dy, r);
+    else set(i, E);
+    if (type[i] === E && rnd() < 0.6) set(i, FIRE, between(6, 20));
+  });
+  for (let s = 0; s < r; s++) spark(cx, cy, r);
+}
+
+/** Throws cell i away from (cx, cy) to the first open cell past r along its line, or loses it. */
+function fling(i, cx, cy, dx, dy, r) {
+  const isCentre = dx === 0 && dy === 0;
+  const a = (isCentre ? rnd() * 2 * Math.PI : Math.atan2(dy, dx)) + (rnd() - 0.5) * 0.6;
+  for (let s = r + 1 + rnd() * r; s <= 3 * r; s++) {
+    const x = Math.round(cx + Math.cos(a) * s), y = Math.round(cy + Math.sin(a) * s);
+    if (x < 0 || x >= W || y < 0 || y >= H) break;
+    const j = y * W + x;
+    if (airy[type[j]] === 1) { swap(i, j); return; }
+  }
+  set(i, E);
+}
+
+/** An ember flying off the rim of a blast. */
+function spark(cx, cy, r) {
+  const a = rnd() * 2 * Math.PI;
+  const x = Math.round(cx + Math.cos(a) * (r + 1)), y = Math.round(cy + Math.sin(a) * (r + 1));
+  if (x < 0 || x >= W || y < 0 || y >= H) return;
+  const j = y * W + x;
+  if (type[j] !== E) return;
+  set(j, EMBER, between(80, 110));
+  aux[j] = x < cx ? -1 : 1;
 }
 
 function powder(i, x, y, t) {
@@ -487,37 +595,51 @@ function liquid(i, x, y, t, reach) {
   if (to >= 0) swap(i, to);
 }
 
-function water(i, x, y) {
+// Water douses fire and quenches lava to obsidian, going up as steam as it
+// does. Brine does the same and leaves its salt behind.
+function water(i, x, y, t) {
   for (let k = 0; k < 4; k++) {
     const n = nb(i, x, y, k);
     if (n < 0) continue;
     const u = type[n];
     if (u === FIRE) {
       set(n, SMOKE, startLife(SMOKE));
-      if (rnd() < 0.3) { set(i, STEAM, startLife(STEAM)); return; }
+      if (rnd() < 0.3) { boil(i, y, t); return; }
     } else if (u === LAVA) {
       set(n, OBSIDIAN);
-      set(i, STEAM, startLife(STEAM));
+      boil(i, y, t);
       return;
     }
   }
-  liquid(i, x, y, WATER, 5);
+  liquid(i, x, y, t, 5);
 }
 
-function lava(i, x, y) {
+function boil(i, y, t) {
+  if (t === WATER) { set(i, STEAM, startLife(STEAM)); return; }
+  set(i, SALT);
+  const isRoomAbove = y > 0 && type[i - W] === E;
+  if (isRoomAbove) set(i - W, STEAM, startLife(STEAM));
+}
+
+function lava(i, x, y, t) {
   for (let k = 0; k < 4; k++) {
     const n = nb(i, x, y, k);
     if (n < 0) continue;
     const u = type[n];
+    const isFrozen = u === ICE || u === SNOW;
     if (burn[u] > 0 && rnd() < 0.5) ignite(n);
     else if (u === SAND && rnd() < 0.02) {
       set(n, GLASS);
       // Melting sand costs heat; enough of it crusts the lava over.
       if (rnd() < 0.15) { set(i, STONE); return; }
+    } else if (isFrozen && rnd() < 0.06) {
+      set(i, PUMICE); // froths up as it sets, light enough to float
+      set(n, WATER);
+      return;
     } else if (u === E && k === 0 && rnd() < 0.003) set(n, SMOKE, startLife(SMOKE));
   }
   if (rnd() < 0.08) col[i] = shades[LAVA][(rnd() * 4) | 0];
-  if (rnd() < 0.5) liquid(i, x, y, LAVA, 1);
+  if (rnd() < 0.5) liquid(i, x, y, t, 1);
 }
 
 const EMBER_RATE = 0.03;
@@ -535,11 +657,7 @@ function fire(i, x, y) {
     }
   }
   const l = life[i] - (hasFuel ? 1 : 3);
-  if (l <= 0) {
-    if (rnd() < 0.25) set(i, SMOKE, startLife(SMOKE));
-    else set(i, E);
-    return;
-  }
+  if (l <= 0) { burnOut(i); return; }
   life[i] = l;
   if (y === 0) return;
   const d = ((rnd() * 3) | 0) - 1;
@@ -553,13 +671,21 @@ function fire(i, x, y) {
     const r = rnd();
     if (r < EMBER_RATE) {
       set(j, EMBER, 70 + rnd() * 40);
-      vel[j] = dir();
+      aux[j] = dir();
     } else if (r < 0.35) {
       set(j, FIRE, 8 + rnd() * 18);
     }
   } else if (rnd() < 0.4) {
     swap(i, j);
   }
+}
+
+/** Spent fire leaves ash where its fuel does, and otherwise now and then smoke. */
+function burnOut(i) {
+  const leavesAsh = aux[i] === 1;
+  if (leavesAsh) set(i, ASH);
+  else if (rnd() < 0.25) set(i, SMOKE, startLife(SMOKE));
+  else set(i, E);
 }
 
 // An ember flies in an arc and lights the first fuel it touches. Water hisses
@@ -569,7 +695,7 @@ function ember(i, x, y) {
     const n = nb(i, x, y, k);
     if (n < 0) continue;
     const u = type[n];
-    if (u === WATER) { set(i, STEAM, startLife(STEAM)); return; }
+    if (isWater(u)) { set(i, STEAM, startLife(STEAM)); return; }
     if (burn[u] > 0 && rnd() < burn[u] * 5) {
       ignite(n);
       set(i, E);
@@ -582,16 +708,14 @@ function ember(i, x, y) {
   const isClimbing = l > EMBER_PEAK;
   const dy = isClimbing ? -1 : 1;
   const ny = y + dy;
-  const nx = x + vel[i];
+  const nx = x + aux[i];
   const isMovingSideways = rnd() < 0.6 && nx >= 0 && nx < W;
   const isMovingVertically = rnd() < (isClimbing ? 0.5 : 0.8) && ny >= 0 && ny < H;
   const tx = isMovingSideways ? nx : x;
   const ty = isMovingVertically ? ny : y;
   const j = ty * W + tx;
   if (j === i) return;
-  const u = type[j];
-  const isOpen = u === E || u === SMOKE || u === STEAM || u === FUME;
-  if (isOpen) swap(i, j);
+  if (airy[type[j]] === 1) swap(i, j);
   else life[i] = Math.max(1, l - 4); // stuck embers fade fast
 }
 
@@ -610,49 +734,84 @@ function ice(i, x, y) {
   if (n >= 0 && type[n] === WATER) set(n, ICE, life[i] - 1);
 }
 
-function snow(i, x, y) {
+function snow(i, x, y, t) {
   for (let k = 0; k < 4; k++) {
     const n = nb(i, x, y, k);
     if (n >= 0 && hot[type[n]] === 1 && rnd() < 0.2) { set(i, WATER); return; }
   }
-  if (rnd() < 0.5) powder(i, x, y, SNOW);
+  if (rnd() < 0.5) powder(i, x, y, t);
 }
 
-// Acid takes a bite of one neighbour a tick, spending one of the bites it
-// carries in `life`; some of what it eats goes up as fume. Water dilutes it,
-// heat boils it off.
-function acid(i, x, y) {
+// Salt dissolves into water as brine. It melts ice and snow into brine too,
+// a few cells for each grain. Brine never freezes.
+function salt(i, x, y, t) {
   const n = nb(i, x, y, (rnd() * 4) | 0);
   if (n >= 0) {
     const u = type[n];
-    if (u === WATER && rnd() < 0.05) { set(i, WATER); return; }
+    const isFrozen = u === ICE || u === SNOW;
+    if (u === WATER && rnd() < 0.1) { set(n, BRINE); set(i, E); return; }
+    if (isFrozen && rnd() < 0.05) {
+      set(n, BRINE);
+      if (rnd() < 0.3) { set(i, E); return; }
+    }
+  }
+  powder(i, x, y, t);
+}
+
+// Acid takes a bite of one neighbour a tick, spending one of the bites it
+// carries in `life`. Water dilutes it, heat boils it off.
+function acid(i, x, y, t) {
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n >= 0) {
+    const u = type[n];
+    if (isWater(u) && rnd() < 0.05) { set(i, WATER); return; }
     if (hot[u] === 1 && rnd() < 0.3) { set(i, FUME, startLife(FUME)); return; }
     if (rnd() < etch[u]) {
-      if (rnd() < 0.25) set(n, FUME, startLife(FUME));
-      else set(n, E);
+      dissolve(n, u);
       const bites = life[i] - 1;
       if (bites <= 0) { set(i, E); return; }
       life[i] = bites;
     }
   }
-  liquid(i, x, y, ACID, 3);
+  liquid(i, x, y, t, 3);
+}
+
+/** What acid eats is mostly gone; a quarter goes up as fume, and metal, half the time, as hydrogen. */
+function dissolve(n, u) {
+  if (u === METAL && rnd() < 0.5) set(n, HYDROGEN, startLife(HYDROGEN));
+  else if (rnd() < 0.25) set(n, FUME, startLife(FUME));
+  else set(n, E);
+}
+
+// Metal touching water rusts, slowly, and faster in brine.
+function metal(i, x, y) {
+  if (rnd() > 0.02) return;
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n < 0) return;
+  const u = type[n];
+  const isRusting = (u === WATER && rnd() < 0.03) || (u === BRINE && rnd() < 0.1);
+  if (isRusting) set(i, RUST);
 }
 
 // Plant sap at or above STEM marks a seedling's stem. Drinking water only
 // ever gives 0–6, so the two never mix.
 const STEM = 8;
 
-// A seed falls like sand. Resting on sand with water touching it, it sprouts
-// a stem with 6–18 cells of growth in it.
-function seed(i, x, y) {
-  const isOnSand = y < H - 1 && type[i + W] === SAND;
-  if (isOnSand && rnd() < 0.02) {
+// A seed falls like sand. Resting on sand or ash with water touching it, it
+// sprouts a stem with 6–18 cells of growth in it; ash feeds it to 12–30.
+function seed(i, x, y, t) {
+  const below = y < H - 1 ? type[i + W] : E;
+  const isOnSoil = below === SAND || below === ASH;
+  if (isOnSoil && rnd() < 0.02) {
     for (let k = 0; k < 4; k++) {
       const n = nb(i, x, y, k);
-      if (n >= 0 && type[n] === WATER) { set(i, PLANT, STEM + 6 + rnd() * 12); return; }
+      if (n < 0 || type[n] !== WATER) continue;
+      const growth = below === ASH ? between(12, 30) : between(6, 18);
+      set(i, PLANT, STEM + growth);
+      return;
     }
   }
-  powder(i, x, y, SEED);
+  powder(i, x, y, t);
 }
 
 // A plant drinks neighbouring water and turns it into more plant. Fresh growth
@@ -692,12 +851,98 @@ function bloom(i, x, y) {
   }
 }
 
+// What a flower cell has given, as bits of its `life`: a petal with nothing
+// under it drops one seed, and a heart amid a patch of flowers lets out one
+// bee.
+const DROPPED = 1, HATCHED = 2;
+
+function flower(i, x, y) {
+  if (rnd() > 0.01) return;
+  const isHeart = col[i] === FLOWER_HEART;
+  if (isHeart) {
+    const canHatch = (life[i] & HATCHED) === 0 && rnd() < 0.03 && isPatch(x, y);
+    if (canHatch) hatch(i, x, y);
+    return;
+  }
+  const canDrop = (life[i] & DROPPED) === 0 && y < H - 1 && type[i + W] === E && rnd() < 0.05;
+  if (!canDrop) return;
+  set(i + W, SEED);
+  life[i] |= DROPPED;
+}
+
+/** Whether three more flower hearts are within 10 cells of (x, y). */
+function isPatch(x, y) {
+  let hearts = 0;
+  disc(x, y, 10, j => { if (type[j] === FLOWER && col[j] === FLOWER_HEART) hearts++; });
+  return hearts >= 4; // this one and three more
+}
+
+function hatch(i, x, y) {
+  let spot = -1;
+  disc(x, y, 2, j => { if (spot < 0 && type[j] === E) spot = j; });
+  if (spot < 0) return;
+  set(spot, BEE);
+  aux[spot] = (rnd() * 8) | 0;
+  life[i] |= HATCHED;
+}
+
+// Bee headings as [dx, dy]; a bee keeps the index in `aux`.
+const HEADINGS = [[1, 0], [1, -1], [0, -1], [-1, -1], [-1, 0], [-1, 1], [0, 1], [1, 1]];
+const POLLEN_PER_DROP = 12;
+
+// A bee flies on its heading, veering now and then, and turns toward flowers
+// it spots. At a flower it lingers, gathering pollen in `life`; with enough,
+// it lets a drop of honey fall.
+function bee(i, x, y) {
+  col[i] = shades[BEE][((tick >> 2) + x) & 1];
+  if (rnd() < 0.4) return;
+  let isAtFlower = false;
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    if (n >= 0 && type[n] === FLOWER) isAtFlower = true;
+  }
+  if (isAtFlower) {
+    life[i] = Math.min(255, life[i] + 1);
+    if (rnd() < 0.7) return;
+  }
+  const canDrip = life[i] >= POLLEN_PER_DROP && y < H - 1 && type[i + W] === E;
+  if (canDrip && rnd() < 0.05) {
+    set(i + W, HONEY);
+    life[i] -= POLLEN_PER_DROP;
+  }
+  if (rnd() < 0.1) seek(i, x, y);
+  else if (rnd() < 0.15) aux[i] = (aux[i] + (rnd() < 0.5 ? 1 : 7)) & 7;
+  const [dx, dy] = HEADINGS[aux[i]];
+  const nx = x + dx, ny = y + dy;
+  const isOpen = nx >= 0 && nx < W && ny >= 0 && ny < H && airy[type[ny * W + nx]] === 1;
+  if (isOpen) swap(i, ny * W + nx);
+  else aux[i] = (rnd() * 8) | 0;
+}
+
+/** A bee glances about; if it sees a flower, it heads that way. */
+function seek(i, x, y) {
+  for (let s = 0; s < 6; s++) {
+    const fx = x + ((rnd() * 33) | 0) - 16, fy = y + ((rnd() * 33) | 0) - 16;
+    const isFlower = fx >= 0 && fx < W && fy >= 0 && fy < H && type[fy * W + fx] === FLOWER;
+    if (!isFlower) continue;
+    const sx = Math.sign(fx - x), sy = Math.sign(fy - y);
+    aux[i] = HEADINGS.findIndex(([dx, dy]) => dx === sx && dy === sy);
+    return;
+  }
+}
+
+// Honey falls like any liquid but spreads slowly.
+function honey(i, x, y, t) {
+  const isFalling = y < H - 1 && type[i + W] === E;
+  if (isFalling || rnd() < 0.2) liquid(i, x, y, t, 1);
+}
+
 function gas(i, x, y, t) {
   const l = life[i] - 1;
   if (l <= 0) {
-    const isRain = t === STEAM && rnd() < 0.5;
-    if (isRain) set(i, RAIN);
-    else set(i, E);
+    const into = MAT[t].condense;
+    const isCondensing = into !== undefined && rnd() < 0.5;
+    set(i, isCondensing ? into : E);
     return;
   }
   life[i] = l;
@@ -707,7 +952,8 @@ function gas(i, x, y, t) {
     if (nx >= 0 && nx < W) {
       const j = i - W + d;
       const u = type[j];
-      const isBubble = (u === WATER || u === OIL) && rnd() < 0.3;
+      const isThin = u === WATER || u === OIL || u === BRINE || u === ACID;
+      const isBubble = isThin && rnd() < 0.3;
       if (u === E || isBubble) { swap(i, j); return; }
     }
   }
@@ -715,19 +961,182 @@ function gas(i, x, y, t) {
   if (x + d >= 0 && x + d < W && type[i + d] === E) swap(i, i + d);
 }
 
-// A drop of condensed steam falls straight through air and gas, and turns to
-// water on whatever it lands on, so water's own reactions take it from there.
-function rain(i, x, y) {
-  if (y === H - 1) { set(i, WATER); return; }
+// Smoke soots the stone and glass it brushes past, a little darker each time.
+function smoke(i, x, y, t) {
+  if (rnd() < 0.02) {
+    const n = nb(i, x, y, (rnd() * 4) | 0);
+    const isSootable = n >= 0 && (type[n] === STONE || type[n] === GLASS);
+    if (isSootable) col[n] = mix(col[n], SOOT, 0.1);
+  }
+  gas(i, x, y, t);
+}
+
+// Steam at the top of the sky, or under a cloud, gathers into cloud.
+function steam(i, x, y, t) {
+  const isUnderCloud = y > 0 && type[i - W] === CLOUD;
+  const isGathering = (y === 0 && rnd() < 0.02) || (isUnderCloud && rnd() < 0.05);
+  if (isGathering) { set(i, CLOUD, 1); return; }
+  gas(i, x, y, t);
+}
+
+// A drop falls straight through air, gas and cloud, and on whatever it lands
+// on turns to water, or acid rain to weak acid, whose own reactions take it
+// from there.
+function rain(i, x, y, t) {
+  if (y === H - 1) { land(i, t); return; }
   const u = type[i + W];
-  const isOpen = u === E || u === SMOKE || u === STEAM || u === FUME;
-  if (isOpen) swap(i, i + W);
-  else if (u !== RAIN) set(i, WATER); // behind another drop, it waits
+  const isDrop = u === RAIN || u === ACID_RAIN;
+  if (airy[u] === 1) swap(i, i + W);
+  else if (!isDrop) land(i, t); // behind another drop, it waits
+}
+
+function land(i, t) {
+  if (t === ACID_RAIN) set(i, ACID, 3);
+  else set(i, WATER);
+}
+
+const CLOUD_FULL = 20;
+
+// A cloud drifts with the breeze, holding water in `life`. The water settles
+// to its base, which darkens, and rains out from there; the top thins away.
+// The wetter a cell, the likelier it is to strike.
+function cloud(i, x, y) {
+  const below = y < H - 1 ? type[i + W] : -1;
+  const canSettle = below === CLOUD && life[i + W] < CLOUD_FULL && rnd() < 0.01;
+  const canRain = below === E && rnd() < 0.012;
+  if (canSettle) life[i + W]++;
+  else if (canRain) set(i + W, RAIN);
+  if (canSettle || canRain) {
+    if (life[i] <= 1) { set(i, E); return; }
+    life[i]--;
+  }
+  if (rnd() < life[i] * 0.000002) strike(x, y + 1);
+  const nx = x + drift;
+  const canDrift = nx >= 0 && nx < W && type[i + drift] === E && rnd() < 0.01;
+  if (canDrift) swap(i, i + drift);
+}
+
+function flash(i) {
+  if (life[i] <= 1) set(i, E);
+  else life[i]--;
+}
+
+// A clone takes on the first thing to touch it, keeping it in `life`, and
+// passes it to the clone cells beside it; from then on it pours it out.
+function clone(i, x, y) {
+  const n = nb(i, x, y, (rnd() * 4) | 0);
+  if (n < 0) return;
+  const u = type[n], into = life[i];
+  if (into === E) {
+    const canTake = u !== E && u !== CLONE && u !== DRAIN && u !== LIGHTNING;
+    if (canTake) pour(i, u);
+    return;
+  }
+  const isBlankClone = u === CLONE && life[n] === E;
+  if (isBlankClone) pour(n, into);
+  else if (u === E && rnd() < 0.5) place(n, into, startLife(into));
+}
+
+function pour(i, t) {
+  life[i] = t;
+  col[i] = mix(shades[CLONE][0], shades[t][0], 0.6);
+}
+
+// A drain swallows anything loose that touches it.
+function drain(i, x, y) {
+  for (let k = 0; k < 4; k++) {
+    const n = nb(i, x, y, k);
+    const isLoose = n >= 0 && type[n] !== E && movable[type[n]] === 1;
+    if (isLoose) set(n, E);
+  }
+}
+
+const BOLT_SWAY = 5; // how far a bolt wanders from where it was aimed
+
+/**
+ * A bolt from row y down through air, gas and cloud, wandering near column
+ * x0, into the first thing under it.
+ */
+function strike(x0, y = 0) {
+  const lo = Math.max(0, x0 - BOLT_SWAY), hi = Math.min(W - 1, x0 + BOLT_SWAY);
+  const glow = startLife(LIGHTNING); // the whole bolt goes out at once
+  let x = clamp(x0, lo, hi);
+  for (; y < H; y++) {
+    if (rnd() < 0.4) x = clamp(x + dir(), lo, hi);
+    const i = y * W + x, u = type[i];
+    const isSolid = airy[u] === 0 && u !== LIGHTNING;
+    if (isSolid) { hit(i, x, y); return; }
+    if (u === E) set(i, LIGHTNING, glow);
+    if (rnd() < 0.03) fork(x, y, glow);
+  }
+}
+
+/** A short branch off a bolt, down and to one side, that hits nothing. */
+function fork(x, y, glow) {
+  const d = dir(), len = between(4, 12);
+  for (let s = 0; s < len; s++) {
+    if (rnd() < 0.7) x += d;
+    y++;
+    if (x < 0 || x >= W || y >= H) return;
+    const i = y * W + x;
+    if (type[i] !== E) return;
+    set(i, LIGHTNING, glow);
+  }
+}
+
+/** A bolt fuses sand to glass, runs through metal, lights fuel, boils water and thaws ice. */
+function hit(i, x, y) {
+  const u = type[i];
+  const isFrozen = u === ICE || u === SNOW;
+  if (u === SAND) fuse(x, y);
+  else if (u === METAL) conduct(i);
+  else if (burn[u] > 0) ignite(i);
+  else if (isWater(u)) {
+    disc(x, y, 2, j => {
+      const isBoiling = isWater(type[j]) && rnd() < 0.5;
+      if (isBoiling) set(j, STEAM, startLife(STEAM));
+    });
+  } else if (isFrozen) set(i, WATER);
+}
+
+/** A crooked tube of glass a few cells down into the sand: a fulgurite. */
+function fuse(x, y) {
+  const len = between(3, 11);
+  for (let s = 0; s < len && y < H; s++, y++) {
+    const i = y * W + x;
+    if (type[i] !== SAND) return;
+    set(i, GLASS);
+    if (rnd() < 0.4) x = clamp(x + dir(), 0, W - 1);
+  }
+}
+
+/**
+ * Runs a bolt through the metal joined to cell `start`, up to 4000 cells of
+ * it: fuel touching it catches, water touching it boils, and sparks jump off.
+ */
+function conduct(start) {
+  const seen = new Uint8Array(N);
+  const queue = [start];
+  seen[start] = 1;
+  for (let q = 0; q < queue.length && q < 4000; q++) {
+    const c = queue[q], x = c % W, y = (c - x) / W;
+    for (let k = 0; k < 4; k++) {
+      const n = nb(c, x, y, k);
+      if (n < 0 || seen[n] === 1) continue;
+      seen[n] = 1;
+      const u = type[n];
+      if (u === METAL) queue.push(n);
+      else if (burn[u] > 0) ignite(n);
+      else if (isWater(u) && rnd() < 0.3) set(n, STEAM, startLife(STEAM));
+      else if (u === E && rnd() < 0.08) set(n, LIGHTNING, startLife(LIGHTNING));
+    }
+  }
 }
 
 /** Scans bottom-up, alternating sides each tick. `clock[i] === tick` marks a cell already moved. */
 function step() {
   tick = tick === 255 ? 1 : tick + 1;
+  if (rnd() < 0.0005) drift = -drift;
   const isLeftFirst = (tick & 1) === 1;
   for (let y = H - 1; y >= 0; y--) {
     const row = y * W;
@@ -735,39 +1144,61 @@ function step() {
       const x = isLeftFirst ? k : W - 1 - k;
       const i = row + x;
       const t = type[i];
-      if (inert[t] === 1 || clock[i] === tick) continue;
-      switch (t) {
-        case SAND: powder(i, x, y, t); break;
-        case WATER: water(i, x, y); break;
-        case OIL: liquid(i, x, y, OIL, 3); break;
-        case LAVA: lava(i, x, y); break;
-        case FIRE: fire(i, x, y); break;
-        case EMBER: ember(i, x, y); break;
-        case ICE: ice(i, x, y); break;
-        case SNOW: snow(i, x, y); break;
-        case SEED: seed(i, x, y); break;
-        case PLANT: plant(i, x, y); break;
-        case ACID: acid(i, x, y); break;
-        case RAIN: rain(i, x, y); break;
-        case SMOKE:
-        case STEAM:
-        case FUME: gas(i, x, y, t); break;
-      }
+      const act = acts[t];
+      if (act === null || clock[i] === tick) continue;
+      act(i, x, y, t);
     }
+  }
+  // Blasts wait for the scan to finish, so none moves a cell out from under the one acting.
+  while (blasts.length > 0) {
+    const r = blasts.pop(), c = blasts.pop();
+    blast(c, r);
   }
 }
 
 // --- panel -----------------------------------------------------------------
 
+// The material buttons, in panel order: [material, key, what it does, share
+// of the brush it fills]. Loose things fill 30% unless given, fixed ones all.
 const TOOLS = [
-  [SAND, '1'], [WATER, '2'], [OIL, '3'], [ACID, 'a'], [FIRE, '4'], [PLANT, '5'],
-  [SEED, '6'], [STONE, '7'], [LAVA, '8'], [ICE, '9'], [SNOW, 's'], [GLASS, 'g'],
-  [OBSIDIAN, 'o'], [E, '0'],
+  [SAND, '1', 'powder, sinks in liquid'],
+  [SALT, 't', 'melts ice, salts water'],
+  [SEED, '6', 'sprouts on wet sand or ash'],
+  [ASH, 'h', 'light powder, feeds seeds'],
+  [PUMICE, 'p', 'stone that floats'],
+  [GUNPOWDER, 'x', 'goes off when lit'],
+  [WATER, '2', 'douses fire, quenches lava'],
+  [OIL, '3', 'floats on water, burns slow'],
+  [ACID, 'a', 'eats all but glass'],
+  [HONEY, 'y', 'thick, slow and sweet'],
+  [LAVA, '8', 'lights fuel, melts sand'],
+  [FIRE, '4', 'burns fuel, throws embers', 0.3],
+  [LIGHTNING, 'l', 'strikes where you point'],
+  [CLOUD, 'k', 'rains, now and then strikes', 1],
+  [STONE, '7', 'stays put'],
+  [WOOD, 'w', 'burns long, leaves ash'],
+  [METAL, 'm', 'carries lightning, rusts'],
+  [GLASS, 'g', 'holds acid, stays put'],
+  [OBSIDIAN, 'o', 'stone that acid barely eats'],
+  [ICE, '9', 'freezes water, fears heat'],
+  [SNOW, 's', 'floats on water, thaws'],
+  [PLANT, '5', 'drinks water and grows'],
+  [BEE, 'e', 'flies to flowers, makes honey', 0.03],
+  [CLONE, 'v', 'pours out what touches it'],
+  [DRAIN, 'd', 'swallows what touches it'],
+  [E, '0', 'rub things out'],
 ];
-const LOOSE = new Set([SAND, WATER, OIL, ACID, FIRE, LAVA, SEED, SNOW]);
+const fills = new Map(TOOLS.map(([t, , , fill]) => [t, fill ?? (movable[t] === 1 ? 0.3 : 1)]));
 
-/** A secret is out of the panel, and its key does nothing, until it's found. */
-const isUnfound = t => secret[t] === 1 && !found.has(MAT[t].name);
+// Clone and drain are the prize for making every discovery.
+const PRIZES = [CLONE, DRAIN];
+const isAllFound = () => SECRETS.every(t => found.has(MAT[t].name));
+
+/** A discovery's tool stays out of the panel, and its key does nothing, until it's made; the prizes until all are. */
+function isLocked(t) {
+  if (PRIZES.includes(t)) return !isAllFound();
+  return secret[t] === 1 && !found.has(MAT[t].name);
+}
 
 let mat = SAND;
 let brush = 4;
@@ -782,14 +1213,24 @@ const collapseEl = document.getElementById('collapse');
 const toastEl = document.getElementById('toast');
 
 const buttons = new Map();
-for (const [t, key] of TOOLS) {
-  const b = document.querySelector(`#tools [data-mat="${MAT[t].name}"]`);
-  if (t !== E) b.querySelector('.sw').style.background = MAT[t].colors[0];
-  b.title = `${t === E ? 'erase' : MAT[t].name} (${key})`;
+for (const [t, key, tip] of TOOLS) {
+  const name = t === E ? 'erase' : MAT[t].name;
+  const b = document.createElement('button');
+  b.innerHTML = '<span class="sw"></span><span class="label"><small></small></span><kbd></kbd>';
+  const sw = b.querySelector('.sw');
+  if (t === E) sw.classList.add('erase');
+  else sw.style.background = MAT[t].colors[0];
+  b.querySelector('.label').prepend(name);
+  b.querySelector('small').textContent = tip;
+  b.querySelector('kbd').textContent = key;
+  b.title = `${name} (${key})`;
+  const words = [name, tip, key];
+  if (t === E) words.push('empty');
+  b.dataset.find = words.join(' ');
   b.addEventListener('click', () => pick(t));
+  document.getElementById('tools').append(b);
   buttons.set(t, b);
 }
-for (const el of navEl.querySelectorAll('[data-find=""]')) el.dataset.find = el.textContent.toLowerCase();
 
 function pick(t) {
   mat = t;
@@ -799,7 +1240,7 @@ function pick(t) {
 /**
  * Shows only the panel items that match the search. A discovery not yet made
  * stays hidden unless searched by its exact name, which reveals its recipe;
- * its material button stays hidden either way.
+ * a locked tool stays hidden either way.
  */
 function filter() {
   const q = searchEl.value.trim().toLowerCase();
@@ -808,14 +1249,14 @@ function filter() {
   for (const group of navEl.querySelectorAll('.group')) {
     let shown = 0;
     for (const item of group.querySelectorAll('[data-find], [data-secret]')) {
-      const isLocked = item.dataset.secret !== undefined;
-      const isUnfoundTool = item.classList.contains('unfound');
+      const isSecret = item.dataset.secret !== undefined;
+      const isLockedTool = !isSecret && item.classList.contains('locked');
       let isMatch = true;
-      if (isUnfoundTool) isMatch = false;
-      else if (isSearching && isLocked) isMatch = q === item.dataset.secret;
+      if (isLockedTool) isMatch = false;
+      else if (isSearching && isSecret) isMatch = q === item.dataset.secret;
       else if (isSearching) isMatch = item.dataset.find.includes(q);
       item.hidden = !isMatch;
-      if (isLocked) item.classList.toggle('is-hinted', isSearching && isMatch);
+      if (isSecret) item.classList.toggle('is-hinted', isSearching && isMatch);
       if (isMatch) shown++;
     }
     group.hidden = isSearching && shown === 0;
@@ -863,10 +1304,10 @@ collapseEl.addEventListener('click', toggleNav);
 // UI size scales the panel and the overlays (--ui). Until the player picks
 // one, it follows the window: 100% up to 900 px tall, up to 125% above that.
 const UI_KEY = 'sand.ui';
-const autoUi = () => Math.min(1.25, Math.max(1, appEl.clientHeight / 900));
+const autoUi = () => clamp(appEl.clientHeight / 900, 1, 1.25);
 let ui = 1;
 function setUi(v) {
-  ui = Math.round(Math.min(2, Math.max(0.7, v)) * 20) / 20;
+  ui = Math.round(clamp(v, 0.7, 2) * 20) / 20;
   document.documentElement.style.setProperty('--ui', String(ui));
   document.getElementById('ui-value').textContent = `${Math.round(ui * 100)}%`;
 }
@@ -896,8 +1337,7 @@ function discover(t) {
   showFound(t);
   const parts = [`discovered ${MAT[t].name}`];
   if (buttons.has(t)) parts.push('now in materials');
-  const isAll = SECRETS.every(s => found.has(MAT[s].name));
-  if (isAll) parts.push(`that's all ${SECRETS.length}`);
+  if (isAllFound()) parts.push(`that's all ${SECRETS.length}`, 'clone and drain unlocked');
   toast(parts.join(' · '));
 }
 
@@ -928,18 +1368,19 @@ function showFound(fresh) {
   const countEl = document.getElementById('found-count');
   countEl.textContent = `${count} / ${SECRETS.length}`;
   countEl.classList.toggle('is-complete', count === SECRETS.length);
-  for (const [t, b] of buttons) b.classList.toggle('unfound', isUnfound(t));
-  const freshTool = buttons.get(fresh);
-  if (freshTool) {
-    freshTool.classList.add('new');
-    freshTool.addEventListener('animationend', () => freshTool.classList.remove('new'), { once: true });
+  for (const [t, b] of buttons) b.classList.toggle('locked', isLocked(t));
+  const isFinal = fresh !== undefined && isAllFound();
+  const freshTools = [fresh, ...(isFinal ? PRIZES : [])].map(t => buttons.get(t)).filter(Boolean);
+  for (const b of freshTools) {
+    b.classList.add('new');
+    b.addEventListener('animationend', () => b.classList.remove('new'), { once: true });
   }
   filter();
 }
 
 const brushEl = document.getElementById('brush');
 function setBrush(r) {
-  brush = Math.max(0, Math.min(30, r));
+  brush = clamp(r, 0, 30);
   brushEl.value = brush;
   document.getElementById('size').textContent = brush * 2 + 1;
 }
@@ -987,7 +1428,7 @@ function cell(e) {
 
 function dab(cx, cy, erase) {
   const r2 = brush * brush + brush;
-  const fill = LOOSE.has(mat) ? 0.3 : 1;
+  const fill = fills.get(mat);
   const isRainbowSand = isRainbow && mat === SAND;
   const hue = performance.now() / 4000; // drifts over time and across x
   for (let dy = -brush; dy <= brush; dy++) {
@@ -1005,6 +1446,8 @@ function dab(cx, cy, erase) {
 }
 
 function paint(p) {
+  const isStrike = !p.erase && mat === LIGHTNING;
+  if (isStrike) return; // one bolt per press, from pointerdown
   const dist = Math.max(Math.abs(p.x - p.lx), Math.abs(p.y - p.ly));
   const steps = Math.max(1, Math.ceil(dist / Math.max(1, brush / 2)));
   for (let s = 1; s <= steps; s++) {
@@ -1024,6 +1467,8 @@ cv.addEventListener('pointerdown', e => {
   const p = { x: c.x, y: c.y, lx: c.x, ly: c.y, erase: isErase };
   pointers.set(e.pointerId, p);
   hover = c;
+  const isStrike = !isErase && mat === LIGHTNING;
+  if (isStrike) strike(c.x);
   paint(p);
 });
 cv.addEventListener('pointermove', e => {
@@ -1052,7 +1497,7 @@ addEventListener('keydown', e => {
   const isTyping = e.target === searchEl;
   if (e.ctrlKey || e.metaKey || e.altKey || isTyping) return;
   if (trackKonami(e.key.toLowerCase())) return; // its last key, a, is also acid's
-  const tool = TOOLS.find(([t, key]) => key === e.key && !isUnfound(t));
+  const tool = TOOLS.find(([t, key]) => key === e.key && !isLocked(t));
   if (tool) { pick(tool[0]); return; }
   switch (e.key) {
     case ' ': e.preventDefault(); setPaused(!paused); break;
@@ -1105,7 +1550,8 @@ addEventListener('appinstalled', () => document.getElementById('install')?.remov
 // --- world -----------------------------------------------------------------
 
 function clear() {
-  type.fill(E); life.fill(0); clock.fill(0); col.fill(BG); vel.fill(0);
+  type.fill(E); life.fill(0); clock.fill(0); col.fill(BG); aux.fill(0);
+  blasts.length = 0;
 }
 
 function rect(x0, y0, x1, y1, t) {
@@ -1113,8 +1559,6 @@ function rect(x0, y0, x1, y1, t) {
     for (let x = x0; x <= x1; x++)
       place(y * W + x, t, startLife(t));
 }
-
-const between = (a, b) => a + rnd() * (b - a);
 
 function shuffle(a) {
   for (let i = a.length - 1; i > 0; i--) {
@@ -1135,7 +1579,8 @@ const SKY = 85;
  * Up to two discoveries stand in it as hints, mostly ones not found yet.
  * Seeing one doesn't discover it: the scene only places cells, and discovering
  * takes a reaction. So nothing reacts at the start: lava is sealed in stone,
- * seeds sit dry, and acid comes only in a glass jar.
+ * seeds sit dry, acid comes only in a glass jar, and there are no flowers,
+ * metal or clouds.
  */
 function scene() {
   clear();
@@ -1216,13 +1661,17 @@ function scene() {
       case 'jar': // acid, which can't eat glass
         rect(inL, brim, inR, inB, ACID);
         break;
+      case 'honey': // a pot of it
+        rect(inL, brim, inR, inB, HONEY);
+        break;
       default: // a tank of oil
         rect(inL, brim, inR, inB, OIL);
     }
   }
 
-  // A dip dug into the ground and filled to just under its lower rim.
-  function lake(l, r) {
+  // A dip dug into the ground and filled to just under its lower rim, with a
+  // raft of pumice afloat in the middle if asked.
+  function lake(l, r, hasRaft) {
     const rimDrop = Math.abs(ground[l] - ground[r]);
     const depth = Math.min(rimDrop + between(8, 14) * k, 0.25 * (r - l)); // banks under 45°
     const surface = Math.max(ground[l], ground[r]) + 1;
@@ -1233,6 +1682,10 @@ function scene() {
       rect(x, ground[x], x, Math.min(bed, surface) - 1, E);
       rect(x, surface, x, bed - 1, WATER);
     }
+    if (!hasRaft) return;
+    const mid = (l + r) >> 1, half = Math.max(2, Math.round((r - l) * between(0.06, 0.12)));
+    rect(mid - half, surface - 1, mid + half, surface - 1, PUMICE);
+    rect(mid - half + 1, surface - 2, mid + half - 1, surface - 2, PUMICE); // narrower, so no corner slides
   }
 
   // A stone mound with lava sealed inside, 3 cells from anything on every side.
@@ -1250,33 +1703,38 @@ function scene() {
     }
   }
 
-  // A trough of dry sand with seeds on it, waiting for water.
-  function planter(l, r) {
+  // A trough of dry sand with seeds on it, waiting for water. With ash, the
+  // seeds lie on a layer of it.
+  function planter(l, r, hasAsh) {
     const depth = Math.round(between(12, 20) * k);
     const floor = stand(l, r, depth), rim = floor - depth;
     vessel(l, r, rim, floor, STONE);
     const soil = rim + Math.max(2, Math.round(between(3, 6) * k));
     rect(l + 3, soil, r - 3, floor - 3, SAND);
+    if (hasAsh) rect(l + 3, soil, r - 3, Math.min(soil + 1, floor - 3), ASH);
     for (let x = l + 3; x <= r - 3; x++) if (rnd() < 0.3) place((soil - 1) * W + x, SEED);
   }
 
   // Pieces on the ground, as [kind, build, min width, max width].
   const plainBasin = (l, r) => basin(l, r, ['oil', 'ice', 'tank'][(rnd() * 3) | 0]);
   const pieces = [
-    ['basin', plainBasin, 50, 90], ['basin', plainBasin, 50, 90], ['lake', lake, 70, 110],
-    ['volcano', (l, r) => volcano(l, r, false), 50, 80], ['planter', planter, 35, 60],
+    ['basin', plainBasin, 50, 90], ['basin', plainBasin, 50, 90], ['lake', (l, r) => lake(l, r, false), 70, 110],
+    ['volcano', (l, r) => volcano(l, r, false), 50, 80], ['planter', (l, r) => planter(l, r, false), 35, 60],
   ];
   const hintPieces = new Map([
     [PLANT, ['basin', (l, r) => basin(l, r, 'reeds'), 50, 90]],
     [SNOW, ['basin', (l, r) => basin(l, r, 'snow'), 50, 90]],
     [GLASS, ['basin', (l, r) => basin(l, r, 'jar'), 35, 60]],
+    [HONEY, ['basin', (l, r) => basin(l, r, 'honey'), 35, 60]],
     [OBSIDIAN, ['volcano', (l, r) => volcano(l, r, true), 50, 80]],
+    [PUMICE, ['lake', (l, r) => lake(l, r, true), 70, 110]],
+    [ASH, ['planter', (l, r) => planter(l, r, true), 35, 60]],
   ]);
 
   // Up to two hints, leaning one, each standing in for a piece of its kind.
   // Ones not found yet are three times as likely.
   const hintCount = [0, 1, 1, 1, 2][(rnd() * 5) | 0];
-  const pool = shuffle([...hintPieces.keys()].flatMap(t => Array(isUnfound(t) ? 3 : 1).fill(t)));
+  const pool = shuffle([...hintPieces.keys()].flatMap(t => Array(isLocked(t) ? 3 : 1).fill(t)));
   const hints = [...new Set(pool)].slice(0, hintCount).map(t => hintPieces.get(t));
   for (const hint of hints) pieces.splice(pieces.findIndex(p => p[0] === hint[0]), 1);
 
@@ -1298,11 +1756,11 @@ function scene() {
     u += w + gap;
   }
 
-  // Ledges to pour things over, up to one in each half of the sky.
+  // Ledges of stone or wood to pour things over, up to one in each half of the sky.
   for (const half of [0, 150]) {
     if (rnd() < 0.4) continue;
     const w = between(20, 50), at = half + between(0, 150 - w), v = between(35, SKY - 10);
-    rect(X(at), Y(v), X(at + w), Y(v) + 2, STONE);
+    rect(X(at), Y(v), X(at + w), Y(v) + 2, rnd() < 0.3 ? WOOD : STONE);
   }
 }
 
@@ -1310,11 +1768,8 @@ function scene() {
 
 function render() {
   for (let i = 0; i < N; i++) {
-    const t = type[i];
-    if (t === FIRE) buf[i] = firePal[life[i]];
-    else if (t === EMBER) buf[i] = firePal[life[i] + 20];
-    else if (t === SMOKE) buf[i] = smokePal[life[i]];
-    else buf[i] = col[i];
+    const p = pal[type[i]];
+    buf[i] = p === null ? col[i] : p[life[i]];
   }
   ctx.putImageData(img, 0, 0);
   const rings = pointers.size ? [...pointers.values()] : [hover].filter(Boolean);
@@ -1333,7 +1788,13 @@ const underEl = document.getElementById('under');
 let shownUnder = '';
 function showUnder() {
   const isInside = hover && hover.x >= 0 && hover.x < W && hover.y >= 0 && hover.y < H;
-  const name = isInside ? MAT[type[hover.y * W + hover.x]].name : '—';
+  let name = '—';
+  if (isInside) {
+    const i = hover.y * W + hover.x, t = type[i];
+    name = MAT[t].name;
+    const isPouring = t === CLONE && life[i] !== E;
+    if (isPouring) name += ` of ${MAT[life[i]].name}`;
+  }
   if (name === shownUnder) return;
   underEl.textContent = name;
   shownUnder = name;
@@ -1373,7 +1834,7 @@ setCollapsed(savedNav === null ? isCramped : savedNav === 'collapsed');
 showFound();
 pick(SAND);
 // About a fingertip across on screen, whatever the cell size.
-setBrush(Math.max(2, Math.min(12, Math.round(15 / (cv.getBoundingClientRect().width / W)))));
+setBrush(clamp(Math.round(15 / (cv.getBoundingClientRect().width / W)), 2, 12));
 setPaused(false);
 scene();
 requestAnimationFrame(frame);

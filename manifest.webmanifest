@@ -1,7 +1,7 @@
 {
   "name": "Falling Sand",
   "short_name": "Sand",
-  "description": "A falling-sand toy. Pour sand, water, oil, acid, fire, lava, ice and seeds, and see what they make.",
+  "description": "A falling-sand toy. Pour sand, water, oil, acid and lava, light fires, strike lightning, and see what they make.",
   "id": "./",
   "start_url": "./",
   "scope": "./",
