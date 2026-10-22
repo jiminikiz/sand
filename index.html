@@ -202,7 +202,7 @@
       <h2>world</h2>
       <div class="list">
         <button id="pause" data-find="pause play space"><span class="label">pause</span><kbd>space</kbd></button>
-        <button id="scene" data-find="scene reset r"><span class="label">scene</span><kbd>r</kbd></button>
+        <button id="scene" data-find="scene reset random new r"><span class="label">scene <small>a new one each time</small></span><kbd>r</kbd></button>
         <button id="clear" data-find="clear empty c"><span class="label">clear</span><kbd>c</kbd></button>
       </div>
     </section>
@@ -380,7 +380,7 @@ function rainbow(h) {
 
 // --- simulation ------------------------------------------------------------
 
-let rngState = 0x9e3779b9;
+let rngState = ((Math.random() * 2 ** 32) >>> 0) || 1; // fresh each load; xorshift needs nonzero
 function rnd() {
   rngState ^= rngState << 13; rngState ^= rngState >>> 17; rngState ^= rngState << 5;
   return (rngState >>> 0) / 4294967296;
@@ -1075,10 +1075,27 @@ function rect(x0, y0, x1, y1, t) {
       set(y * W + x, t, startLife(t));
 }
 
+const between = (a, b) => a + rnd() * (b - a);
+
+function shuffle(a) {
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = (rnd() * (i + 1)) | 0;
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Plan rows: ledges float above SKY, and nothing on the ground is built up into it.
+const SKY = 85;
+
 /**
- * The starting scene, drawn on a 300 × 180 plan. The plan is scaled evenly to
- * fit right of the panel, so nothing starts out under it, and stands on the
- * bottom edge; the ground runs the full width. Walls stay 3 cells thick.
+ * A new random scene each call, drawn on a 300 × 180 plan. The plan is scaled
+ * evenly to fit right of the panel, so nothing starts out under it, and stands
+ * on the bottom edge; the ground runs the full width. Walls stay 3 cells thick.
+ *
+ * Nothing in it reacts at the start, so every discovery is left to the player:
+ * `set()` counts any secret it places as found. Lava is sealed in stone, seeds
+ * sit dry, and acid never appears, since only a glass jar would hold it.
  */
 function scene() {
   clear();
@@ -1088,27 +1105,123 @@ function scene() {
   const left = x0 + ((W - 1 - x0) - 300 * k) / 2, top = (H - 1) - 180 * k;
   const X = v => Math.round(left + v * k);
   const Y = v => Math.round(top + v * k);
+
+  // Rolling sand over a thin bedrock: a broad swell, hills and ripples, each
+  // gentle enough that nothing slides at the start.
+  const level = between(148, 166);
+  // Each wave: amplitude range, then length range, in plan units.
+  const waves = [[0, 10, 70, 140], [2, 7, 25, 50], [0.5, 2.5, 7, 14]]
+    .map(([a0, a1, l0, l1]) => [between(a0, a1), between(l0, l1), rnd() * 2 * Math.PI]);
+  const rockLen = between(10, 30), rockPhase = rnd() * 2 * Math.PI;
+  const ground = new Int16Array(W); // top row of the sand in each column
   for (let x = 0; x < W; x++) {
     const u = (x - left) / k;
-    const ground = Y(166) + Math.round((4 * Math.sin(u / 23) + 2 * Math.sin(u / 7)) * k);
-    rect(x, ground, x, H - 1, SAND);
+    let v = level;
+    for (const [amp, len, phase] of waves) v += amp * Math.sin(u / len + phase);
+    ground[x] = Y(Math.min(v, 174));
+    rect(x, ground[x], x, H - 1, SAND);
+    const rock = Y(173 + 3 * Math.sin(u / rockLen + rockPhase));
+    rect(x, Math.max(rock, ground[x] + 3), x, H - 1, STONE);
   }
-  // Left basin: water under a layer of oil.
-  const bl = X(30), br = X(110), bt = Y(92), bb = Y(136);
-  rect(bl, bt, bl + 2, bb, STONE);
-  rect(br - 2, bt, br, bb, STONE);
-  rect(bl, bb - 2, br, bb, STONE);
-  rect(bl + 3, Y(104), br - 3, bb - 3, WATER);
-  rect(bl + 3, Y(97), br - 3, Y(104) - 1, OIL);
-  // Right shelf: a shallow pool with a plant at one end.
-  const sl = X(190), sr = X(280), sb = Y(120), st = Y(108);
-  rect(sl, sb, sr, sb + 2, STONE);
-  rect(sl, st, sl + 2, sb - 1, STONE);
-  rect(sr - 2, st, sr, sb - 1, STONE);
-  rect(sl + 7, Y(112), sr - 3, sb - 1, WATER);
-  rect(sl + 3, Y(106), sl + 6, sb - 1, PLANT);
-  // A ledge to pour things over.
-  rect(X(140), Y(60), X(175), Y(60) + 2, STONE);
+
+  // The floor row of a box `depth` deep: on the highest ground under it, half
+  // the time up on legs.
+  function stand(l, r, depth) {
+    let floor = H;
+    for (let x = l; x <= r; x++) floor = Math.min(floor, ground[x] - 1);
+    const room = Math.max(0, floor - depth - Y(SKY));
+    const isOnLegs = rnd() < 0.5;
+    return floor - (isOnLegs ? Math.round(rnd() * room) : 0);
+  }
+
+  function stoneBox(l, r, rim, floor) {
+    rect(l, rim, l + 2, floor, STONE);
+    rect(r - 2, rim, r, floor, STONE);
+    rect(l, floor - 2, r, floor, STONE);
+    for (const x of [l, l + 1, l + 2, r - 2, r - 1, r]) rect(x, floor + 1, x, ground[x] - 1, STONE);
+  }
+
+  function basin(l, r) {
+    const depth = Math.round(between(18, 44) * k);
+    const floor = stand(l, r, depth), rim = floor - depth;
+    stoneBox(l, r, rim, floor);
+    const inL = l + 3, inR = r - 3, inB = floor - 3;
+    const brim = rim + Math.round(depth * between(0.1, 0.25));
+    const layer = Math.min(inB, brim + Math.max(2, Math.round((inB - brim) * between(0.2, 0.4))));
+    switch ((rnd() * 4) | 0) {
+      case 0: // water under oil
+        rect(inL, layer, inR, inB, WATER);
+        rect(inL, brim, inR, layer - 1, OIL);
+        break;
+      case 1: // water under ice, which slowly freezes it
+        rect(inL, layer, inR, inB, WATER);
+        rect(inL, brim, inR, layer - 1, ICE);
+        break;
+      case 2: // a tank of oil
+        rect(inL, brim, inR, inB, OIL);
+        break;
+      default: { // water with a plant at one end, standing out of it
+        const reed = rnd() < 0.5 ? inL : inR - 3;
+        rect(inL, layer, inR, inB, WATER);
+        rect(reed, brim, reed + 3, inB, PLANT);
+      }
+    }
+  }
+
+  // A dip dug into the ground and filled to just under its lower rim.
+  function lake(l, r) {
+    const rimDrop = Math.abs(ground[l] - ground[r]);
+    const depth = Math.min(rimDrop + between(8, 14) * k, 0.25 * (r - l)); // banks under 45°
+    const surface = Math.max(ground[l], ground[r]) + 1;
+    for (let x = l; x <= r; x++) {
+      const t = (x - l) / (r - l);
+      const bowl = ground[l] + (ground[r] - ground[l]) * t + depth * Math.sin(Math.PI * t);
+      const bed = Math.max(ground[x], Math.round(bowl));
+      rect(x, ground[x], x, Math.min(bed, surface) - 1, E);
+      rect(x, surface, x, bed - 1, WATER);
+    }
+  }
+
+  // A stone mound with lava sealed inside, 3 cells from anything on every side.
+  function volcano(l, r) {
+    let base = 0;
+    for (let x = l; x <= r; x++) base = Math.min(H - 1, Math.max(base, ground[x] + 2));
+    const half = (r - l) >> 1;
+    const height = Math.max(7, Math.round(half * between(0.45, 0.8)));
+    for (let d = 0; d <= height; d++) {
+      rect(l + d, base - d, r - d, base - d, STONE);
+      const isCore = d >= 3 && d <= height - 3;
+      if (isCore) rect(l + d + 3, base - d, r - d - 3, base - d, LAVA);
+    }
+  }
+
+  // A trough of dry sand with seeds on it, waiting for water.
+  function planter(l, r) {
+    const depth = Math.round(between(12, 20) * k);
+    const floor = stand(l, r, depth), rim = floor - depth;
+    stoneBox(l, r, rim, floor);
+    const soil = rim + Math.max(2, Math.round(between(3, 6) * k));
+    rect(l + 3, soil, r - 3, floor - 3, SAND);
+    for (let x = l + 3; x <= r - 3; x++) if (rnd() < 0.3) set((soil - 1) * W + x, SEED);
+  }
+
+  // On the ground, left to right in a random order, while they fit.
+  const pieces = [[basin, 50, 90], [basin, 50, 90], [lake, 70, 110], [volcano, 50, 80], [planter, 35, 60]];
+  let u = between(4, 24);
+  for (const [build, minW, maxW] of shuffle(pieces)) {
+    const w = between(minW, maxW);
+    const isTooWide = u + w > 296;
+    if (isTooWide) continue;
+    build(X(u), X(u + w));
+    u += w + between(8, 30);
+  }
+
+  // Ledges to pour things over, up to one in each half of the sky.
+  for (const half of [0, 150]) {
+    if (rnd() < 0.4) continue;
+    const w = between(20, 50), at = half + between(0, 150 - w), v = between(35, SKY - 10);
+    rect(X(at), Y(v), X(at + w), Y(v) + 2, STONE);
+  }
 }
 
 // --- render ----------------------------------------------------------------

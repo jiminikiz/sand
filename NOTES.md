@@ -47,6 +47,26 @@ found.
 - `sinks(t, j)` is the one density rule: a mover displaces anything movable
   with lower `dens`.
 - Fixed 60 Hz timestep; at most three steps per frame.
+- `rnd()` is a xorshift seeded from `Math.random()` on load, so every load
+  starts on a different scene.
+
+## Scenes
+
+- `scene()` (on load, and `r`) rolls a new one: rolling sand over a thin
+  bedrock, then ground pieces left to right in a shuffled order while they
+  fit, then up to one ledge in each half of the sky.
+- The pieces: a basin (water under oil, water under ice, an oil tank, or
+  water with a plant at one end), a lake dug into the ground, a stone mound
+  with lava sealed inside, and a planter of dry sand with seeds on it.
+  Basins and planters stand on the highest ground under them, half the time
+  up on legs. Nothing on the ground rises past `SKY`, where the ledges float.
+- `set()` counts any secret it places as discovered, so a scene never
+  places one or sets one off: lava has 3 cells of stone on every side, seeds
+  sit dry, and there is no acid, since only a glass jar would hold it.
+- Ground waves and lake banks stay under 45°, so no sand slides at the start.
+- Checked in Brave: 60 scenes each at 300×180, 214×160, 158×341 and 341×158
+  cells, 300 ticks apiece. No secret was made, and nothing changed but water
+  turning to ice or plant.
 
 ## Layout
 
