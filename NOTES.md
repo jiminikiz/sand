@@ -5,49 +5,50 @@ installs as an app and plays offline (see "App" below).
 
 ## Materials
 
-| Material  | Key           | Behaviour                                                                    |
-| --------- | ------------- | ---------------------------------------------------------------------------- |
-| sand      | 1             | Powder. Sinks slowly through liquids.                                        |
-| salt      | t             | Powder. Dissolves in water as brine; melts ice and snow into brine, a few cells a grain. |
-| seed      | 6             | Falls like sand. On sand or ash with water touching it, sprouts a stem; on ash a taller one. |
-| gunpowder | x             | Powder. Lit, it blows a hole of radius 5; the rest of a pile goes off as a ripple. |
-| water     | 2             | Liquid. Puts out fire (smoke, some steam), quenches lava (obsidian, steam).  |
-| oil       | 3             | Liquid, floats on water. Burns slowly; burning oil stays put and flames.     |
-| acid      | a             | Liquid. Eats what it touches, 10 bites each, except glass, clone and drain. Water dilutes it. |
-| lava      | 8             | Viscous. Ignites fuel, melts sand to glass, crusts to stone doing it; froths to pumice on ice. |
-| fire      | 4             | Stays on fuel and throws flames and embers; loose fire drifts up & dies. Fixed: what falls on it waits. |
-| lightning | l             | One bolt per press, from the top of the sky to the first thing under the pointer. |
-| stone     | 7             | Static.                                                                      |
-| wood      | w             | Static. Catches slowly, burns long throwing embers, leaves ash.              |
-| metal     | m             | Static. Rusts in water, faster in brine. Carries lightning.                  |
-| ice       | 9             | Freezes water with a limited cold budget; melts near anything hot.          |
-| smoke     | no            | fire dying out or doused. Soots stone and glass darker.                      |
-| steam     | no            | water meeting fire, lava or an ember. Rises, half condenses into rain.       |
-| rain      | no            | steam condensing. Falls through air and gas, turns to water on landing.      |
-| ash       | h, once found | wood or plants burnt down. Light powder: rests on sand, sinks in water.      |
-| plant     | 5, once found | seed + water on sand. Drinks touching water into more plant; spare water sprouts upward. |
-| glass     | g, once found | lava or lightning + sand. Static; acid can't eat it.                         |
-| brine     | no            | salt + water. Sinks under water, never freezes; boiled, leaves its salt.     |
-| obsidian  | o, once found | lava + water. Static; acid barely eats it.                                   |
-| ember     | no            | thrown by fire on fuel, or a blast; arcs 30–60 cells and lights fuel it lands on |
-| snow      | s, once found | steam + ice. Falls, floats on water, melts near heat.                        |
-| fume      | no            | a quarter of what acid eats goes up as this green gas                        |
-| flower    | no            | top of a seed's stem: a yellow heart, one petal colour per bloom             |
-| pumice    | p, once found | lava + ice. A powder that floats on water.                                   |
-| rust      | no            | metal left in water. Powder; acid eats it readily.                           |
-| hydrogen  | no            | half of the metal acid eats. Rises; lit, pops with a blast of radius 2.      |
-| acid rain | no            | fume condensing. Falls like rain, lands as acid with 3 bites.               |
-| cloud     | k, once found | steam reaching the top of the sky. Drifts, rains from its base, now and then strikes. |
-| bee       | e, once found | a flower heart with three more within 10 cells. Gathers pollen, drips honey. |
-| honey     | y, once found | bees carrying pollen. Thick; sinks under water and brine.                    |
-| clone     | v, the prize  | takes the first thing that touches it, passes it to the clone beside it, pours it out. |
-| drain     | d, the prize  | swallows anything loose that touches it.                                     |
+| Material  | Paint      | Behaviour                                                                    |
+| --------- | ---------- | ---------------------------------------------------------------------------- |
+| sand      | yes        | Powder. Sinks slowly through liquids.                                        |
+| salt      | yes        | Powder. Dissolves in water as brine; melts ice and snow into brine, a few cells a grain. |
+| seed      | yes        | Falls like sand. On sand or ash with water touching it, sprouts a stem; on ash a taller one. |
+| gunpowder | yes        | Powder. Lit, it blows a hole of radius 5; the rest of a pile goes off as a ripple. |
+| water     | yes        | Liquid. Puts out fire (smoke, some steam), quenches lava (obsidian, steam).  |
+| oil       | yes        | Liquid, floats on water. Burns slowly; burning oil stays put and flames.     |
+| acid      | yes        | Liquid. Eats what it touches, 10 bites each, except glass, clone and drain. Water dilutes it. |
+| lava      | yes        | Viscous. Ignites fuel, melts sand to glass, crusts to stone doing it; froths to pumice on ice. |
+| fire      | yes        | Stays on fuel and throws flames and embers; loose fire drifts up & dies. Fixed: what falls on it waits. |
+| lightning | yes        | One bolt per press, from the top of the sky to the first thing under the pointer. |
+| stone     | yes        | Static.                                                                      |
+| wood      | yes        | Static. Catches slowly, burns long throwing embers, leaves ash.              |
+| metal     | yes        | Static. Rusts in water, faster in brine. Carries lightning.                  |
+| ice       | yes        | Freezes water with a limited cold budget; melts near anything hot.          |
+| smoke     | no         | fire dying out or doused. Soots stone and glass darker.                      |
+| steam     | no         | water meeting fire, lava or an ember. Rises, half condenses into rain.       |
+| rain      | no         | steam condensing. Falls through air and gas, turns to water on landing.      |
+| ash       | once found | wood or plants burnt down. Light powder: rests on sand, sinks in water.      |
+| plant     | once found | seed + water on sand. Drinks touching water into more plant; spare water sprouts upward. |
+| glass     | once found | lava or lightning + sand. Static; acid can't eat it.                         |
+| brine     | no         | salt + water. Sinks under water, never freezes; boiled, leaves its salt.     |
+| obsidian  | once found | lava + water. Static; acid barely eats it.                                   |
+| ember     | no         | thrown by fire on fuel, or a blast; arcs 30–60 cells and lights fuel it lands on |
+| snow      | once found | steam + ice. Falls, floats on water, melts near heat.                        |
+| fume      | no         | a quarter of what acid eats goes up as this green gas                        |
+| flower    | no         | top of a seed's stem: a yellow heart, one petal colour per bloom             |
+| pumice    | once found | lava + ice. A powder that floats on water.                                   |
+| rust      | no         | metal left in water. Powder; acid eats it readily.                           |
+| hydrogen  | no         | half of the metal acid eats. Rises; lit, pops with a blast of radius 2.      |
+| acid rain | no         | fume condensing. Falls like rain, lands as acid with 3 bites.               |
+| cloud     | once found | steam reaching the top of the sky. Drifts, rains from its base, now and then strikes. |
+| bee       | once found | a flower heart with three more within 10 cells. Gathers pollen, drips honey. |
+| honey     | once found | bees carrying pollen. Thick; sinks under water and brine.                    |
+| clone     | the prize  | takes the first thing that touches it, passes it to the clone beside it, pours it out. |
+| drain     | the prize  | swallows anything loose that touches it.                                     |
 
 The nineteen discoveries (`SECRETS`) are saved per browser in `localStorage`
 under `sand.found`. Each has a `how` in `MAT`, shown once found. A discovery
-that is also in `TOOLS` joins the materials once found; until then its button
-stays out of the panel, search included, and its key does nothing. Clone and
-drain join once all nineteen are. The rest are never paintable.
+that is also in `TOOLS` joins the materials sheet once found; until then its
+tile stays out of the sheet, search included. Clone and drain join once all
+nineteen are: the reward for the "every last one" achievement (below). The
+rest are never paintable.
 
 Flowers drop one seed from each petal with room under it, and a heart amid a
 patch lets out one bee; each flower cell keeps what it has given in `life`.
@@ -68,9 +69,10 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   pours; what a flower has given. `aux` is an ember's or a bee's heading, or
   for fire whether it leaves ash.
 - Discovering takes a reaction. Reactions make cells with `set()`, which
-  credits a secret; `place()` puts a cell down without crediting. Scenes
-  place, and so does plant spreading from plant, so plant is discovered only
-  by a seed sprouting.
+  credits a secret and counts the cell in `made`; `place()` puts a cell down
+  without either. Scenes and painting place, and so does plant spreading from
+  plant, so plant is discovered only by a seed sprouting, and `made` counts
+  only what reactions made.
 - `ignite()` lights fuel. Fuel with a `blast` is lit at once and queued; the
   blasts go off after the scan, so none moves a cell out from under the one
   acting. Gunpowder caught in a blast is only lit, and goes off a tick later
@@ -96,16 +98,17 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   with lower `dens`. Densities are fractional where they need to slot in:
   pumice 2.5 floats on water, brine 3.5 sinks under it, honey 3.8 under that,
   ash 4.5 rests on sand with seeds resting on it.
-- The material buttons are built from `TOOLS`: material, key, tip, and the
+- The materials sheet is built from `TOOLS`: material, group, tip, and the
   share of the brush it fills (30% for loose things and fire, all for fixed
-  ones, 3% for bees).
+  ones, 3% for bees). Every swatch is a 6 × 6 pixel picture drawn from the
+  material's own shades or palette by `swatch()`.
 - Fixed 60 Hz timestep; at most three steps per frame.
 - `rnd()` is a xorshift seeded from `Math.random()` on load, so every load
   starts on a different scene.
 
 ## Scenes
 
-- `scene()` (on load, and `r`) rolls a new one: rolling sand over a thin
+- `scene()` (on load, `r`, and new scene in the menu) rolls a new one: rolling sand over a thin
   bedrock, then ground pieces left to right in a shuffled order while they
   fit, then up to one ledge, stone or now and then wood, in each half of the
   sky.
@@ -141,25 +144,49 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   fit by `fitApp()`, which sets `--fit`, rather than scrolled. The canvas
   fills all of it, with no margin or border.
 - The canvas runs under notches and camera cutouts (`viewport-fit=cover`).
-  The panel and overlays sit in `.safe`, inset by `env(safe-area-inset-*)`
-  divided by `--fit`.
-- A panel floats over the left of the sandbox and holds everything: search,
-  materials, brush, ui size, world controls, discoveries, help. It scrolls on
-  its own. `n` or the « button folds it to a 60 px rail of swatches. Until
-  the player picks, it starts folded when open it would cover more than a
-  quarter of the width; the pick is kept in `sand.nav`.
-- Sand poured under the panel is still there, just covered.
-- UI size (`-` / `=`, or the − + buttons) scales the panel, the strip and
-  the toast through the `--ui` CSS variable, using `transform: scale`. Until
-  the player picks, it follows the layout: 100% up to 900 px tall, up to 125%
+  The rail, sheets and overlays sit in `.safe`, inset by
+  `env(safe-area-inset-*)` divided by `--fit`.
+- One UI for desktop and touch, built for a tablet first: a rail down the
+  left (64 px before `--ui`) and sheets that open beside it. From the top:
+  menu, the material slots, "all", then erase, brush size and pause. The
+  sandbox gets the rest of the width, and scenes are laid out right of the
+  rail.
+- The slots hold the materials picked last, and each keeps its place: a
+  material picked from the sheet, if it isn't on the rail already, takes the
+  slot used longest ago. As many show as fit, up to nine (keys 1–9). Below
+  640 px of rail the slot names go, so a phone in landscape gets four slots
+  instead of two. Kept in `sand.slots`.
+- Sheets open one at a time beside the rail. A tap on the sandbox, Escape or
+  × closes one, and that tap pours nothing.
+  - Materials ("all", or `/` with the search focused): a search box, the
+    paintable materials as tiles in groups (powders, liquids, fire and sky,
+    solids, living, prizes) with their tips, then the discoveries and the
+    achievements, each with a count. A material that unlocks, or an
+    achievement earned, puts a dot on "all" until the sheet opens, and its
+    tile or row flashes.
+  - Menu: new scene, clear, install (while offered), ui size, help, footer.
+  - Size: four brush widths on screen, 6, 14, 28 and 56 px; the wheel and
+    `[ ]` step between them. The rail's size button shows a dot to match.
+- Erase is a mode on the rail (`e`); picking a material ends it. Right-drag
+  still erases with a mouse. The brush ring turns red while erasing.
+- New scene and clear keep the world they replace. The toast they pop has an
+  undo button for 8 s, and ctrl or ⌘ z works after that, as long as the grid
+  is the same size.
+- Keys: 1–9 slots, `/` find a material, `e` erase, space pause, `r` new
+  scene, `c` clear, ctrl or ⌘ z undo, `[ ]` brush, `- =` ui size, Escape
+  closes a sheet. Materials no longer have letters of their own: there were
+  too many to remember, and search finds any of them by name.
+- UI size (`-` / `=`, or − + in the menu) scales the rail, sheets, strip and
+  toast through the `--ui` CSS variable, using `transform: scale`. Until the
+  player picks, it follows the layout: 100% up to 900 px tall, up to 125%
   above that. Clicking the percentage goes back to automatic. Kept in
   `sand.ui`.
-- Search (`/`) filters every panel item by name and description. Enter picks
-  the first button left, Escape clears. A discovery not yet made only shows
-  when searched by its exact name, and then shows its recipe.
-- What's under the brush (for a clone, what it pours), and pause, show in a
-  strip at the bottom right. Discoveries also pop a toast there, so they're
-  seen with the panel folded.
+- Search filters the materials sheet by name and description. Enter picks
+  the first tile left, Escape clears, then closes. A discovery not yet made
+  only shows when searched by its exact name, and then shows its recipe.
+- What's under the brush (for a clone, what it pours) shows in a strip at
+  the bottom right while a pointer is over the sandbox, with pause; the strip
+  hides when there's nothing to say. Discoveries pop a toast at the top.
 
 ## Screens and touch
 
@@ -173,13 +200,13 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   and back kept 99% of a scene. Until then the canvas stretches, and cells
   can end up a hair off square.
 - `scene()` is drawn on a 300×180 plan, scaled evenly to fit right of the
-  panel and standing on the bottom edge, with walls kept 3 cells thick. The
+  rail and standing on the bottom edge, with walls kept 3 cells thick. The
   ground runs the full width. In portrait that leaves open sky above.
 - `pointers` holds one stroke per finger, so several fingers pour at once.
-  The starting brush is about 15 px across on screen, whatever the cell
-  size.
-- Touch screens (`hover: none` and `pointer: coarse`) get 40 px buttons, no
-  key labels and their own help line.
+  The starting brush is the size sheet's 14 px, whatever the cell size.
+- Every button is at least 44 px tall; rail buttons are 58 (44 on a short
+  rail). Touch screens (`hover: none` and `pointer: coarse`) only lose the
+  key labels and get their own help lines.
 - A Pixel 8 running the installed app gave the page only about 528 × 247 CSS
   px in landscape, likely from zoom or a large display size. The first
   layout overflowed it: the panel filled the view and the canvas sat off
@@ -190,6 +217,11 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   1280×960, and at 528×247 and 247×528. At 528×247 the app lays out at
   1026×480, scaled by 0.51, and a drag pours under the pointer. Not yet seen
   on the phone itself.
+- The rail, checked in Brave in iframes: 1180×820 (an iPad in landscape)
+  shows 8 slots, 820×1180 shows 9 at 125%, 1024×768 shows 7, and 844×390 (a
+  phone in landscape, scaled to fit) 4 on a short rail. A tap on the sandbox
+  with a sheet open closed it and changed no cell; the next tap poured. Not
+  yet tried with real touch on a tablet.
 
 ## App
 
@@ -201,7 +233,7 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   change. Bump `CACHE` only when the `SHELL` list changes.
 - Service workers need https, or `localhost` / `127.0.0.1`. Opened straight
   from disk (`file://`) the game runs fine, just without offline or install.
-- An "install" button joins the world controls only while the browser offers
+- An "install" button joins the menu only while the browser offers
   installation (`beforeinstallprompt`: Chromium browsers). Safari installs
   from Share → Add to Home Screen, using `apple-touch-icon.png`.
 - Icons are pixel art drawn by `scripts/make-icons.py` (standard library
@@ -244,10 +276,65 @@ patch lets out one bee; each flower cell keeps what it has given in `life`.
   a quarter of itself in 100 s.
 - A full 54,000-cell scene steps in 0.22 ms and renders in 0.14 ms.
 
+## Achievements
+
+Seventeen, listed in the materials sheet under the discoveries and saved per
+browser in `sand.achieved`. Earning one pops a toast, or joins the toast of
+the discovery that earned it.
+
+| Achievement      | Goal                                                       |
+| ---------------- | ---------------------------------------------------------- |
+| halfway          | make 10 of the 19 discoveries                              |
+| every last one   | make all 19; clone and drain join the materials            |
+| chain reaction   | 25 blasts within a second                                  |
+| firestorm        | 1,500 cells burning at once                                |
+| demolition       | blast away 1,000 cells of stone                            |
+| storm            | a cloud strikes on its own                                 |
+| lightning rod    | a bolt runs through 200 cells of metal and lights something |
+| glassblower      | make 1,000 cells of glass                                  |
+| salt flats       | boil brine down to 200 grains of salt                      |
+| shipwreck        | rust 100 cells of metal                                    |
+| green thumb      | 30 flowers in bloom at once                                |
+| beekeeper        | 12 bees at once                                            |
+| sweet tooth      | bees make 300 cells of honey                               |
+| full palette     | 20 different materials on screen at once                   |
+| perpetual motion | a drain swallows 1,000 cells while a clone pours           |
+| second thoughts  | secret: undo a clear or a new scene                        |
+| rainbow          | secret: the ↑ ↑ ↓ ↓ code                                   |
+
+- The rule is the one discoveries follow: an achievement needs the player.
+  Nothing a scene does on its own may earn one, so counts of what's made come
+  from reactions only (`made`), and "at once" thresholds sit well above what
+  a scene places. Freezing water was left out for that reason, since the ice
+  basins in scenes do it unasked; so was anything timed.
+- The ones with a `test` are checked twice a second of play (every 30 ticks,
+  from the frame loop) against `census()`, which counts what's on screen, and
+  against `made` and `feats`, which the simulation keeps: the most blasts in
+  any second, stone blasted, clouds striking, the longest run of metal a bolt
+  lit something through, and cells drained. Those counts start at zero each
+  load. Undo and the code are earned where they happen. On load, any already
+  due (halfway, every last one) are earned quietly.
+- Checked in Brave, each from a fresh start: a gunpowder pile on a stone floor
+  made 374 blasts in a second (chain reaction) and blasted 374 stone, so
+  demolition went from 300 to 1,000; seams of gunpowder in stone blasted
+  6,147. An oil pool lit along its top burned 1,683 cells at once. A painted
+  cloud struck on its own 17 times in 30 s. A bolt down 240 cells of metal set
+  off gunpowder at the foot. Brine over lava gave 300 salt, metal in brine 514
+  rust in 30 s. Twenty materials side by side made full palette, and a clone
+  of water over a drain swallowed 9,427 cells in 40 s. A bed of 68 seeds gave
+  green thumb within 25 s, beekeeper within 50 s and sweet tooth by 150 s.
+- Glass: lava poured on flat sand glazes one row of it, and the glass shields
+  the rest, so a pour 300 cells wide makes exactly 300, however much lava
+  follows. Sand poured into a pool of lava sinks through it and keeps melting:
+  1,131 glass in 20 s. That's the trick glassblower asks for.
+- 60 scenes at each of four sizes, run 300 ticks and checked as play would:
+  no achievement, no discovery, and at most 9 materials on screen at once.
+
 ## Easter eggs
 
 - ↑ ↑ ↓ ↓ ← → ← → b a toggles rainbow sand: freshly poured sand takes a hue
-  that drifts with time and across the grid. Not saved.
+  that drifts with time and across the grid. Not saved, though the first time
+  earns the secret "rainbow" achievement.
 - Searching a locked discovery's exact name gives its recipe (above).
 
 ## Not done yet

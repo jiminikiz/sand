@@ -13,14 +13,16 @@
   :root {
     --bg: #0b0d12;
     --nav-bg: rgba(16, 19, 26, 0.9);
+    --sheet-bg: rgba(18, 21, 29, 0.97);
     --panel: #141821;
     --line: #262b38;
     --text: #d9dce4;
     --muted: #7d8496;
     --faint: #4d5363;
     --focus: #e9c46a;
-    --ui: 1;  /* scales the panel and overlays; set by the script */
-    --fit: 1; /* scales the whole app into windows under 640 × 480; set by the script */
+    --rail: 64px; /* the rail's width, before --ui */
+    --ui: 1;      /* scales the rail, sheets and overlays; set by the script */
+    --fit: 1;     /* scales the whole app into windows under 640 × 480; set by the script */
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }
@@ -36,8 +38,8 @@
     width: 100vw; height: 100vh; min-width: 640px; min-height: 480px; transform-origin: 0 0;
   }
 
-  /* The sandbox runs under notches and camera cutouts; the panel and overlays
-     stay inside the screen's safe area. */
+  /* The sandbox runs under notches and camera cutouts; the rail, sheets and
+     overlays stay inside the screen's safe area. */
   .safe {
     position: absolute; pointer-events: none;
     top: calc(env(safe-area-inset-top, 0px) / var(--fit));
@@ -45,78 +47,137 @@
     bottom: calc(env(safe-area-inset-bottom, 0px) / var(--fit));
     left: calc(env(safe-area-inset-left, 0px) / var(--fit));
   }
-  .safe > nav { pointer-events: auto; }
+  .safe > :is(nav, .sheet) { pointer-events: auto; }
 
-  /* The panel floats over the left of the sandbox, scaled by --ui. */
-  nav {
-    position: absolute; left: 0; top: 0; z-index: 2;
-    width: 236px; height: calc(100% / var(--ui));
-    transform: scale(var(--ui)); transform-origin: 0 0;
-    display: flex; flex-direction: column; gap: 18px; padding: 12px;
-    overflow-y: auto; overscroll-behavior: contain;
-    background: var(--nav-bg); border-right: 1px solid var(--line);
-    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
-    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  button {
+    font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 12px; min-height: 44px;
+    display: inline-flex; align-items: center; gap: 10px; cursor: pointer;
+    touch-action: manipulation; text-align: left;
   }
-  .nav-head { display: flex; align-items: center; gap: 8px; }
-  .nav-head h1 { flex: 1; margin: 0; font-size: 15px; font-weight: 600; }
-  #collapse { padding: 3px 9px; font-size: 15px; line-height: 1; }
+  button[aria-pressed="true"] { border-color: var(--focus); }
+  @media (hover: hover) { button:hover { border-color: #3a4152; } }
+  h1 { margin: 0; font-size: 15px; font-weight: 600; }
   h2 {
-    margin: 0 0 6px; display: flex; justify-content: space-between;
+    margin: 0 0 8px; display: flex; justify-content: space-between;
     font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted);
   }
+  kbd { font: 11px ui-monospace, monospace; color: var(--muted); }
+  .label { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+  .label small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
+  .list { display: flex; flex-direction: column; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .list > * { width: 100%; }
+  .list li { display: flex; align-items: center; gap: 9px; padding: 5px 4px; }
+  .sw {
+    flex: none; width: 14px; height: 14px; border-radius: 3px;
+    background: center / 100% 100% no-repeat; image-rendering: pixelated;
+  }
+
+  /* The rail down the left: menu, the material slots and "all", then erase,
+     brush size and pause. Its buttons are RAIL_BUTTON tall (SHORT_BUTTON on a
+     short rail) with RAIL_GAP between them; the script fits the slots by those. */
+  nav {
+    position: absolute; left: 0; top: 0; z-index: 2;
+    width: var(--rail); height: calc(100% / var(--ui));
+    transform: scale(var(--ui)); transform-origin: 0 0;
+    display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0;
+    background: var(--nav-bg); border-right: 1px solid var(--line);
+    -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+  }
+  #slots {
+    flex: 1 1 0; min-height: 0; overflow: hidden;
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+  }
+  .rail-btn {
+    flex: none; width: 58px; height: 58px; min-height: 0; padding: 3px 0 0; gap: 2px;
+    flex-direction: column; justify-content: flex-start; align-items: center;
+    border: 0; background: none; color: var(--muted); font-size: 10px; line-height: 1.1;
+  }
+  .rail-btn .face {
+    position: relative; width: 40px; height: 40px; border-radius: 9px; display: grid; place-items: center;
+    background: var(--panel) center / 100% 100% no-repeat; border: 2px solid var(--line); image-rendering: pixelated;
+  }
+  .rail-btn .name { max-width: 58px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  nav.is-short .rail-btn { height: 44px; padding-top: 2px; } /* names go, so more slots fit */
+  nav.is-short .rail-btn .name { display: none; }
+  .rail-btn:is([aria-pressed="true"], [aria-expanded="true"]) { color: var(--text); }
+  .rail-btn:is([aria-pressed="true"], [aria-expanded="true"]) .face { border-color: var(--focus); }
+  @media (hover: hover) {
+    .rail-btn:not([aria-pressed="true"], [aria-expanded="true"]):hover .face { border-color: #3a4152; }
+  }
+  .rail-btn svg {
+    width: 22px; height: 22px; fill: none; stroke: currentColor;
+    stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  }
+  #erase-btn[aria-pressed="true"] .face { background-color: #3b2328; }
+  #all.has-new .face::after {
+    content: ''; position: absolute; top: -5px; right: -5px; width: 12px; height: 12px;
+    border-radius: 50%; background: var(--focus); border: 2px solid var(--bg);
+  }
+  .dot { display: block; border-radius: 50%; background: var(--text); }
+
+  /* Sheets open beside the rail, one at a time. */
+  .sheet {
+    position: absolute; z-index: 3; top: 8px; left: calc(var(--rail) * var(--ui) + 8px);
+    width: min(var(--sheet-w), calc((100% - var(--rail) * var(--ui) - 16px) / var(--ui)));
+    max-height: calc((100% - 16px) / var(--ui));
+    overflow-y: auto; overscroll-behavior: contain; padding: 0 14px 14px;
+    transform: scale(var(--ui)); transform-origin: 0 0;
+    background: var(--sheet-bg); border: 1px solid var(--line); border-radius: 12px;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+    scrollbar-width: thin; scrollbar-color: var(--line) transparent;
+  }
+  #materials { --sheet-w: 560px; }
+  #menu { --sheet-w: 300px; }
+  #sizes { width: auto; top: auto; bottom: 8px; transform-origin: 0 100%; padding: 8px; }
+  .sheet-head {
+    position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 8px;
+    padding: 14px 0 12px; background: var(--sheet-bg);
+  }
+  .sheet-head > :first-child { flex: 1; }
+  .close { width: 44px; padding: 0; justify-content: center; font-size: 20px; line-height: 1; }
+  .sheet .group + .group { margin-top: 18px; }
+  #groups + .group { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+
   .find { position: relative; display: block; }
   .find input {
-    width: 100%; font: inherit; color: var(--text); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 6px; padding: 6px 28px 6px 9px;
+    width: 100%; min-height: 44px; font: inherit; color: var(--text); background: var(--panel);
+    border: 1px solid var(--line); border-radius: 8px; padding: 6px 28px 6px 10px;
   }
   .find input:focus { outline: none; border-color: var(--focus); }
   .find input:not(:placeholder-shown) + kbd { display: none; }
-  .find kbd { position: absolute; right: 9px; top: 50%; transform: translateY(-50%); pointer-events: none; }
-  .nomatch { margin: -8px 0 0; color: var(--muted); font-size: 13px; }
+  .find kbd { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; }
+  .nomatch { margin: 0 0 10px; color: var(--muted); font-size: 13px; }
 
-  .list { display: flex; flex-direction: column; gap: 3px; margin: 0; padding: 0; list-style: none; }
-  button {
-    font: inherit; color: var(--text); background: var(--panel);
-    border: 1px solid var(--line); border-radius: 6px; padding: 5px 10px;
-    display: inline-flex; align-items: center; gap: 9px; cursor: pointer;
-    touch-action: manipulation; text-align: left;
-  }
-  button:hover { border-color: #3a4152; }
-  button[aria-pressed="true"] { border-color: var(--focus); }
-  .list > * { width: 100%; }
-  .list li { display: flex; align-items: center; gap: 9px; padding: 5px 11px; }
-  .label { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-  .label small { color: var(--muted); font-size: 11.5px; line-height: 1.3; }
-  kbd { font: 11px ui-monospace, monospace; color: var(--muted); }
-  .sw { flex: none; width: 14px; height: 14px; border-radius: 3px; }
-  .sw.erase { background: repeating-linear-gradient(45deg, #555 0 2px, transparent 2px 4px); outline: 1px solid #555; }
+  .tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 6px; }
+  .tile { min-height: 54px; padding: 6px 10px 6px 7px; }
+  .tile .sw { width: 38px; height: 38px; border-radius: 7px; }
 
-  .brush { display: flex; align-items: center; gap: 10px; }
-  .brush input { flex: 1; min-width: 0; accent-color: var(--focus); }
-  .brush b { min-width: 2ch; text-align: right; font-weight: 500; }
-  .ui-size { display: flex; align-items: center; gap: 6px; }
-  .ui-size > span { flex: 1; }
-  .ui-size button { padding: 3px 10px; justify-content: center; }
-  #ui-value { min-width: 6ch; }
-
+  :is(#found, #achievements) { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 0 12px; }
   #found li.locked { color: var(--faint); }
   #found li.locked .sw { outline: 1px dashed var(--faint); }
   #found li .name-hint, #found li .how-hint { display: none; }
   #found li.is-hinted .name-hint, #found li.is-hinted .how-hint { display: inline; }
   #found li.is-hinted :is(.name-q, .how-q) { display: none; }
-  #found li.new, #tools button.new { animation: found 1.6s ease-out; border-radius: 6px; }
+  #achievements li { color: var(--muted); }
+  #achievements li.earned { color: var(--text); }
+  .mark { flex: none; width: 14px; text-align: center; font-size: 14px; line-height: 1; color: var(--faint); }
+  .mark::before { content: '☆'; }
+  .earned .mark { color: var(--focus); }
+  .earned .mark::before { content: '★'; }
+  :is(#found, #achievements) li.new, .tile.new { animation: found 1.6s ease-out; border-radius: 8px; }
   @keyframes found { from { background: #e9c46a33; } } /* back to the item's own background */
-  #found-count.is-complete { color: var(--focus); }
+  :is(#found-count, #achieved-count).is-complete { color: var(--focus); }
 
-  .help { color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
-  footer { margin-top: auto; color: var(--faint); font-size: 11.5px; }
-
-  .is-collapsed nav { width: 60px; padding: 12px 8px; }
-  .is-collapsed :is(.nav-head h1, .find, .nomatch, h2, .label, nav kbd, footer) { display: none; }
-  .is-collapsed .group:not(.materials) { display: none; }
-  .is-collapsed .nav-head { justify-content: center; }
-  .is-collapsed .list button { justify-content: center; padding: 9px 0; }
+  #menu .list { margin-bottom: 14px; }
+  .ui-size { display: flex; align-items: center; gap: 6px; margin-bottom: 14px; }
+  .ui-size > span { flex: 1; }
+  .ui-size button { padding: 0 12px; justify-content: center; }
+  #ui-value { min-width: 7ch; }
+  .help { color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 3px; margin-bottom: 14px; }
+  footer { color: var(--faint); font-size: 11.5px; }
+  .sizes { display: flex; gap: 6px; }
+  .sizes button { width: 52px; height: 52px; padding: 0; justify-content: center; }
 
   .stage { position: absolute; inset: 0; }
   canvas {
@@ -134,19 +195,20 @@
   .hud b { color: var(--text); font-weight: 500; }
   .hud #state:empty { display: none; }
   .toast {
-    top: 10px; left: 50%; font-size: 13px; padding: 5px 12px;
+    z-index: 4; top: 10px; left: 50%; font-size: 13px; padding: 5px 12px;
+    width: max-content; max-width: calc(90% / var(--ui)); text-align: center;
     opacity: 0; transform: translate(-50%, -6px) scale(var(--ui)); transform-origin: 50% 0;
     transition: opacity 0.25s, transform 0.25s;
   }
   .toast.is-shown { opacity: 1; transform: translate(-50%, 0) scale(var(--ui)); }
+  .toast button { margin-left: 10px; padding: 2px 14px; font-size: 13px; }
+  .toast.is-shown button { pointer-events: auto; }
 
   .touch-only { display: none; }
   @media (hover: none) and (pointer: coarse) {
-    button { min-height: 40px; }
     kbd, .fine-only { display: none; }
     .touch-only { display: block; }
-    .find input { padding-right: 9px; }
-    .brush input { height: 28px; }
+    .find input { padding-right: 10px; }
   }
 </style>
 </head>
@@ -155,63 +217,72 @@
   <div class="stage"><canvas id="c"></canvas></div>
 
   <div class="safe">
-  <nav id="nav" aria-label="Tools">
-    <div class="nav-head">
-      <h1>Falling Sand</h1>
-      <button id="collapse" aria-controls="nav" aria-expanded="true">«</button>
+  <nav id="rail" aria-label="Tools">
+    <button class="rail-btn" id="menu-btn" aria-controls="menu" aria-expanded="false" title="menu">
+      <span class="face"><svg viewBox="0 0 24 24"><path d="M5 7h14M5 12h14M5 17h14"/></svg></span><span class="name">menu</span>
+    </button>
+    <div id="slots">
+      <button class="rail-btn" id="all" aria-controls="materials" aria-expanded="false" title="all materials (/)">
+        <span class="face"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="4" width="6.5" height="6.5" rx="1.5"/><rect x="4" y="13.5" width="6.5" height="6.5" rx="1.5"/><rect x="13.5" y="13.5" width="6.5" height="6.5" rx="1.5"/></svg></span><span class="name">all</span>
+      </button>
     </div>
-    <label class="find">
-      <input id="search" type="search" placeholder="search" aria-label="Search the panel" autocomplete="off" spellcheck="false">
-      <kbd class="fine-only">/</kbd>
-    </label>
+    <button class="rail-btn" id="erase-btn" aria-pressed="false" title="erase (e)">
+      <span class="face"><svg viewBox="0 0 24 24"><path d="M14.5 4.5l5 5-9 9h-5l-2.5-2.5a1.5 1.5 0 0 1 0-2z"/><path d="M8.5 10.5l5 5"/><path d="M13 18.5h7"/></svg></span><span class="name">erase</span>
+    </button>
+    <button class="rail-btn" id="size-btn" aria-controls="sizes" aria-expanded="false" title="brush size ([ ])">
+      <span class="face"><span class="dot" id="size-dot"></span></span><span class="name">size</span>
+    </button>
+    <button class="rail-btn" id="pause" title="pause (space)">
+      <span class="face"></span><span class="name"></span>
+    </button>
+  </nav>
+
+  <div class="sheet" id="materials" role="dialog" aria-label="Materials" hidden>
+    <div class="sheet-head">
+      <label class="find">
+        <input id="search" type="search" placeholder="search" aria-label="Search materials and discoveries" autocomplete="off" spellcheck="false">
+        <kbd class="fine-only">/</kbd>
+      </label>
+      <button class="close" aria-label="close">×</button>
+    </div>
     <p class="nomatch" id="nomatch" hidden>nothing matches</p>
-
-    <section class="group materials">
-      <h2>materials</h2>
-      <div class="list" id="tools"></div>
-    </section>
-
-    <section class="group">
-      <h2>brush</h2>
-      <label class="brush" data-find="brush size"><input id="brush" type="range" min="0" max="30" aria-label="brush size"><b id="size"></b></label>
-    </section>
-
-    <section class="group">
-      <h2>view</h2>
-      <div class="ui-size" data-find="ui size scale zoom bigger smaller text">
-        <span>ui size</span>
-        <button id="ui-down" aria-label="smaller panel" title="smaller (-)">−</button>
-        <button id="ui-value" title="back to automatic"></button>
-        <button id="ui-up" aria-label="bigger panel" title="bigger (=)">+</button>
-      </div>
-    </section>
-
-    <section class="group">
-      <h2>world</h2>
-      <div class="list">
-        <button id="pause" data-find="pause play space"><span class="label">pause</span><kbd>space</kbd></button>
-        <button id="scene" data-find="scene reset random new r"><span class="label">scene <small>a new one each time</small></span><kbd>r</kbd></button>
-        <button id="clear" data-find="clear empty c"><span class="label">clear</span><kbd>c</kbd></button>
-      </div>
-    </section>
-
+    <div id="groups"></div>
     <section class="group">
       <h2>discoveries <span id="found-count"></span></h2>
       <ul class="list" id="found"></ul>
     </section>
-
-    <section class="group help">
-      <span class="fine-only">drag to pour · right-drag to erase</span>
-      <span class="fine-only">scroll or [ ] for brush size</span>
-      <span class="fine-only">/ to search · n to fold this panel</span>
-      <span class="fine-only">- = for ui size</span>
-      <span class="touch-only">drag to pour · pour with several fingers at once · pick erase to rub out</span>
+    <section class="group">
+      <h2>achievements <span id="achieved-count"></span></h2>
+      <ul class="list" id="achievements"></ul>
     </section>
+  </div>
 
+  <div class="sheet" id="menu" role="dialog" aria-label="Menu" hidden>
+    <div class="sheet-head"><h1>Falling Sand</h1><button class="close" aria-label="close">×</button></div>
+    <div class="list">
+      <button id="scene"><span class="label">new scene <small>a different one each time</small></span><kbd>r</kbd></button>
+      <button id="clear"><span class="label">clear <small>empty the whole world</small></span><kbd>c</kbd></button>
+    </div>
+    <div class="ui-size">
+      <span>ui size</span>
+      <button id="ui-down" aria-label="smaller" title="smaller (-)">−</button>
+      <button id="ui-value" title="back to automatic"></button>
+      <button id="ui-up" aria-label="bigger" title="bigger (=)">+</button>
+    </div>
+    <div class="help">
+      <span class="fine-only">drag to pour · right-drag to erase</span>
+      <span class="fine-only">1–9 a slot · / any material · e erase</span>
+      <span class="fine-only">scroll or [ ] brush size · - = ui size</span>
+      <span class="fine-only">space pause · ctrl or ⌘ z undoes a clear</span>
+      <span class="touch-only">drag to pour, with several fingers if you like</span>
+      <span class="touch-only">all has every material; what you pick stays on the rail</span>
+    </div>
     <footer>Made with ❤️ by Claude</footer>
-  </nav>
+  </div>
 
-  <div class="hud"><span>under brush: <b id="under">—</b></span><span id="state"></span></div>
+  <div class="sheet" id="sizes" role="dialog" aria-label="Brush size" hidden><div class="sizes" id="size-options"></div></div>
+
+  <div class="hud" id="hud" hidden><span id="under-wrap" hidden>under brush: <b id="under"></b></span><span id="state"></span></div>
   <div class="toast" id="toast" role="status"></div>
   </div>
 </div>
@@ -354,7 +425,7 @@ const MAT = [
   { name: 'clone', dens: 9, fixed: true, act: clone, hold: 1, colors: ['#c04fd8'] },
   { name: 'drain', dens: 9, fixed: true, act: drain, hold: 1, colors: ['#3d2356', '#2a173c', '#331d49'] },
   { name: 'bee', dens: 0, act: bee, burn: 0.3, etch: 0.6, how: 'a patch of flowers',
-    colors: ['#f5c518', '#2a2210', '#f5c518'] }, // stripes as it flies; the last is its swatch
+    colors: ['#f5c518', '#2a2210'] }, // stripes as it flies
   { name: 'honey', dens: 3.8, act: honey, etch: 0.3, how: 'bees carrying pollen',
     colors: ['#e09b1a', '#d68f12', '#eaa82a', '#c98410'] },
 ];
@@ -375,7 +446,7 @@ const SOOT = hex('#2f2b27');
 
 // Materials you can only get by making them, roughly easiest first. The
 // discoveries list tracks these, saved per browser. Those in TOOLS join the
-// materials once found.
+// materials sheet once found.
 const SECRETS = [SMOKE, STEAM, RAIN, ASH, PLANT, GLASS, BRINE, OBSIDIAN, EMBER, SNOW, FUME, FLOWER, PUMICE,
   RUST, HYDROGEN, ACID_RAIN, CLOUD, BEE, HONEY];
 const secret = new Uint8Array(MAT.length);
@@ -439,10 +510,17 @@ const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 const isWater = u => u === WATER || u === BRINE;
 
 let tick = 1;
+let age = 0;        // ticks run since load; unlike `tick`, it never wraps
 let drift = 1;      // which way clouds drift; it turns now and then
 const blasts = [];  // [cell, radius] pairs, set off once the tick's scan is done
 
-/** Puts a cell down without discovering it: a scene, or more of something already there. */
+// What reactions have made since load, and a few feats, for the achievements
+// to read. Painting and scenes only place cells, so they count for nothing.
+const made = new Uint32Array(MAT.length);
+const feats = { blastBurst: 0, stoneBlasted: 0, selfStrikes: 0, longestRod: 0, swallowed: 0 };
+const recentBlasts = []; // the ages of the last second's blasts
+
+/** Puts a cell down without discovering it: a scene, painting, or more of something already there. */
 function place(i, t, l = 0) {
   type[i] = t;
   life[i] = l;
@@ -455,6 +533,7 @@ function place(i, t, l = 0) {
 /** Every reaction makes cells through here, so making a secret discovers it. */
 function set(i, t, l = 0) {
   place(i, t, l);
+  made[t]++;
   if (secret[t] === 1 && !found.has(MAT[t].name)) discover(t);
 }
 
@@ -530,7 +609,10 @@ function blast(c, r) {
     else if (rnd() < (m.hold ?? 0)) return;
     else if (burn[u] > 0) ignite(i);
     else if (isFlung) fling(i, cx, cy, dx, dy, r);
-    else set(i, E);
+    else {
+      if (u === STONE) feats.stoneBlasted++;
+      set(i, E);
+    }
     if (type[i] === E && rnd() < 0.6) set(i, FIRE, between(6, 20));
   });
   for (let s = 0; s < r; s++) spark(cx, cy, r);
@@ -1010,7 +1092,10 @@ function cloud(i, x, y) {
     if (life[i] <= 1) { set(i, E); return; }
     life[i]--;
   }
-  if (rnd() < life[i] * 0.000002) strike(x, y + 1);
+  if (rnd() < life[i] * 0.000002) {
+    feats.selfStrikes++;
+    strike(x, y + 1);
+  }
   const nx = x + drift;
   const canDrift = nx >= 0 && nx < W && type[i + drift] === E && rnd() < 0.01;
   if (canDrift) swap(i, i + drift);
@@ -1047,7 +1132,9 @@ function drain(i, x, y) {
   for (let k = 0; k < 4; k++) {
     const n = nb(i, x, y, k);
     const isLoose = n >= 0 && type[n] !== E && movable[type[n]] === 1;
-    if (isLoose) set(n, E);
+    if (!isLoose) continue;
+    set(n, E);
+    feats.swallowed++;
   }
 }
 
@@ -1118,6 +1205,7 @@ function conduct(start) {
   const seen = new Uint8Array(N);
   const queue = [start];
   seen[start] = 1;
+  let lit = 0;
   for (let q = 0; q < queue.length && q < 4000; q++) {
     const c = queue[q], x = c % W, y = (c - x) / W;
     for (let k = 0; k < 4; k++) {
@@ -1126,16 +1214,18 @@ function conduct(start) {
       seen[n] = 1;
       const u = type[n];
       if (u === METAL) queue.push(n);
-      else if (burn[u] > 0) ignite(n);
+      else if (burn[u] > 0) { ignite(n); lit++; }
       else if (isWater(u) && rnd() < 0.3) set(n, STEAM, startLife(STEAM));
       else if (u === E && rnd() < 0.08) set(n, LIGHTNING, startLife(LIGHTNING));
     }
   }
+  if (lit > 0) feats.longestRod = Math.max(feats.longestRod, queue.length);
 }
 
 /** Scans bottom-up, alternating sides each tick. `clock[i] === tick` marks a cell already moved. */
 function step() {
   tick = tick === 255 ? 1 : tick + 1;
+  age++;
   if (rnd() < 0.0005) drift = -drift;
   const isLeftFirst = (tick & 1) === 1;
   for (let y = H - 1; y >= 0; y--) {
@@ -1153,40 +1243,43 @@ function step() {
   while (blasts.length > 0) {
     const r = blasts.pop(), c = blasts.pop();
     blast(c, r);
+    recentBlasts.push(age);
   }
+  while (recentBlasts.length > 0 && recentBlasts[0] <= age - 60) recentBlasts.shift();
+  feats.blastBurst = Math.max(feats.blastBurst, recentBlasts.length);
 }
 
-// --- panel -----------------------------------------------------------------
+// --- rail and sheets -------------------------------------------------------
 
-// The material buttons, in panel order: [material, key, what it does, share
-// of the brush it fills]. Loose things fill 30% unless given, fixed ones all.
+// Every material you can paint, as the materials sheet lists them:
+// [material, group, what it does, share of the brush it fills]. Loose things
+// fill 30% unless given, fixed ones all.
 const TOOLS = [
-  [SAND, '1', 'powder, sinks in liquid'],
-  [SALT, 't', 'melts ice, salts water'],
-  [SEED, '6', 'sprouts on wet sand or ash'],
-  [ASH, 'h', 'light powder, feeds seeds'],
-  [PUMICE, 'p', 'stone that floats'],
-  [GUNPOWDER, 'x', 'goes off when lit'],
-  [WATER, '2', 'douses fire, quenches lava'],
-  [OIL, '3', 'floats on water, burns slow'],
-  [ACID, 'a', 'eats all but glass'],
-  [HONEY, 'y', 'thick, slow and sweet'],
-  [LAVA, '8', 'lights fuel, melts sand'],
-  [FIRE, '4', 'burns fuel, throws embers', 0.3],
-  [LIGHTNING, 'l', 'strikes where you point'],
-  [CLOUD, 'k', 'rains, now and then strikes', 1],
-  [STONE, '7', 'stays put'],
-  [WOOD, 'w', 'burns long, leaves ash'],
-  [METAL, 'm', 'carries lightning, rusts'],
-  [GLASS, 'g', 'holds acid, stays put'],
-  [OBSIDIAN, 'o', 'stone that acid barely eats'],
-  [ICE, '9', 'freezes water, fears heat'],
-  [SNOW, 's', 'floats on water, thaws'],
-  [PLANT, '5', 'drinks water and grows'],
-  [BEE, 'e', 'flies to flowers, makes honey', 0.03],
-  [CLONE, 'v', 'pours out what touches it'],
-  [DRAIN, 'd', 'swallows what touches it'],
-  [E, '0', 'rub things out'],
+  [SAND, 'powders', 'powder, sinks in liquid'],
+  [SALT, 'powders', 'melts ice, salts water'],
+  [SEED, 'powders', 'sprouts on wet sand or ash'],
+  [ASH, 'powders', 'light powder, feeds seeds'],
+  [PUMICE, 'powders', 'stone that floats'],
+  [SNOW, 'powders', 'floats on water, thaws'],
+  [GUNPOWDER, 'powders', 'goes off when lit'],
+  [WATER, 'liquids', 'douses fire, quenches lava'],
+  [OIL, 'liquids', 'floats on water, burns slow'],
+  [ACID, 'liquids', 'eats all but glass'],
+  [LAVA, 'liquids', 'lights fuel, melts sand'],
+  [HONEY, 'liquids', 'thick, slow and sweet'],
+  [FIRE, 'fire and sky', 'burns fuel, throws embers', 0.3],
+  [LIGHTNING, 'fire and sky', 'strikes where you point'],
+  [CLOUD, 'fire and sky', 'rains, now and then strikes', 1],
+  [STONE, 'solids', 'stays put'],
+  [WOOD, 'solids', 'burns long, leaves ash'],
+  [METAL, 'solids', 'carries lightning, rusts'],
+  [ICE, 'solids', 'freezes water, fears heat'],
+  [GLASS, 'solids', 'holds acid, stays put'],
+  [OBSIDIAN, 'solids', 'stone that acid barely eats'],
+  [PLANT, 'living', 'drinks water and grows'],
+  [BEE, 'living', 'flies to flowers, makes honey', 0.03],
+  [CLONE, 'prizes', 'pours out what touches it'],
+  [DRAIN, 'prizes', 'swallows what touches it'],
 ];
 const fills = new Map(TOOLS.map(([t, , , fill]) => [t, fill ?? (movable[t] === 1 ? 0.3 : 1)]));
 
@@ -1194,72 +1287,223 @@ const fills = new Map(TOOLS.map(([t, , , fill]) => [t, fill ?? (movable[t] === 1
 const PRIZES = [CLONE, DRAIN];
 const isAllFound = () => SECRETS.every(t => found.has(MAT[t].name));
 
-/** A discovery's tool stays out of the panel, and its key does nothing, until it's made; the prizes until all are. */
+/** A discovery stays out of the sheet and off the rail until it's made; the prizes until all are. */
 function isLocked(t) {
   if (PRIZES.includes(t)) return !isAllFound();
   return secret[t] === 1 && !found.has(MAT[t].name);
 }
 
 let mat = SAND;
+let isErasing = false;
 let brush = 4;
 let paused = false;
 let isRainbow = false;
 const pointers = new Map(); // pointerId -> { x, y, lx, ly, erase }; one per finger
 let hover = null;            // { x, y } for the ring and the readout
 
-const navEl = document.getElementById('nav');
+const railEl = document.getElementById('rail');
+const slotsEl = document.getElementById('slots');
+const allEl = document.getElementById('all');
+const eraseEl = document.getElementById('erase-btn');
+const sizeEl = document.getElementById('size-btn');
+const pauseEl = document.getElementById('pause');
+const materialsEl = document.getElementById('materials');
+const menuEl = document.getElementById('menu');
+const sizesEl = document.getElementById('sizes');
 const searchEl = document.getElementById('search');
-const collapseEl = document.getElementById('collapse');
 const toastEl = document.getElementById('toast');
+const hudEl = document.getElementById('hud');
+const underWrapEl = document.getElementById('under-wrap');
+const stateEl = document.getElementById('state');
 
-const buttons = new Map();
-for (const [t, key, tip] of TOOLS) {
-  const name = t === E ? 'erase' : MAT[t].name;
+/** A 6 × 6 pixel picture of a material in its own shades, as a CSS background image. */
+function swatch(t) {
+  const c = document.createElement('canvas');
+  c.width = c.height = 6;
+  const g = c.getContext('2d');
+  const im = g.createImageData(6, 6);
+  const px = new Uint32Array(im.data.buffer);
+  const s = shades[t], p = pal[t];
+  const zigzag = [3, 2, 3, 4, 3, 2]; // lightning's column in each row
+  for (let i = 0; i < 36; i++) {
+    const x = i % 6, y = (i - x) / 6, r = Math.random();
+    if (t === BEE) px[i] = s[y & 1];
+    else if (t === LIGHTNING) px[i] = x === zigzag[y] ? s[0] : BG;
+    else if (t === CLOUD) px[i] = p[1 + ((r * 6) | 0)];
+    else if (p !== null) px[i] = p[20 + ((r * 60) | 0)];
+    else px[i] = s[(r * s.length) | 0];
+  }
+  g.putImageData(im, 0, 0);
+  return `url(${c.toDataURL()})`;
+}
+const swatches = MAT.map((_, t) => swatch(t));
+
+// The rail's slots hold the materials picked last, each keeping its place: a
+// pick that isn't on the rail takes the slot used longest ago. Kept in
+// `sand.slots`.
+const SLOTS_KEY = 'sand.slots';
+const SLOT_MAX = 9; // keys 1–9
+const RAIL_BUTTON = 58, SHORT_BUTTON = 44, RAIL_GAP = 4; // as in the CSS for .rail-btn and #slots
+const SHORT_RAIL = 640; // a rail shorter than this drops its names
+const STARTING_SLOTS = [SAND, WATER, FIRE, STONE, LAVA, SEED, OIL, ACID, ICE];
+let slots = [];
+let slotUsed = []; // when each slot was last picked, by useClock
+let useClock = 0;
+let slotCount = SLOT_MAX; // how many fit on the rail
+try { slots = JSON.parse(localStorage.getItem(SLOTS_KEY) || '[]').map(n => MAT.findIndex(m => m.name === n)); } catch {}
+
+/** Drops slots that can't be painted (locked, unknown or doubled) and tops them up from the starting set. */
+function settleSlots() {
+  slots = slots.filter((t, k) => fills.has(t) && !isLocked(t) && slots.indexOf(t) === k).slice(0, SLOT_MAX);
+  for (const t of STARTING_SLOTS) if (slots.length < SLOT_MAX && !slots.includes(t)) slots.push(t);
+  slotUsed = slots.map((_, k) => SLOT_MAX - k);
+  useClock = SLOT_MAX;
+}
+
+function saveSlots() {
+  try { localStorage.setItem(SLOTS_KEY, JSON.stringify(slots.map(t => MAT[t].name))); } catch {}
+}
+
+const slotEls = [];
+for (let k = 0; k < SLOT_MAX; k++) {
   const b = document.createElement('button');
-  b.innerHTML = '<span class="sw"></span><span class="label"><small></small></span><kbd></kbd>';
-  const sw = b.querySelector('.sw');
-  if (t === E) sw.classList.add('erase');
-  else sw.style.background = MAT[t].colors[0];
-  b.querySelector('.label').prepend(name);
-  b.querySelector('small').textContent = tip;
-  b.querySelector('kbd').textContent = key;
-  b.title = `${name} (${key})`;
-  const words = [name, tip, key];
-  if (t === E) words.push('empty');
-  b.dataset.find = words.join(' ');
-  b.addEventListener('click', () => pick(t));
-  document.getElementById('tools').append(b);
-  buttons.set(t, b);
+  b.className = 'rail-btn';
+  b.innerHTML = '<span class="face"></span><span class="name"></span>';
+  b.addEventListener('click', () => { pick(slots[k]); closeSheet(); });
+  allEl.before(b);
+  slotEls.push(b);
+}
+
+/** Puts t on the rail, in the slot used longest ago if it isn't showing already. */
+function seat(t) {
+  let k = slots.indexOf(t);
+  const isShown = k >= 0 && k < slotCount;
+  if (!isShown) {
+    let oldest = 0;
+    for (let j = 1; j < slotCount; j++) if (slotUsed[j] < slotUsed[oldest]) oldest = j;
+    if (k >= 0) slots[k] = slots[oldest]; // up from a slot that doesn't fit
+    slots[oldest] = t;
+    k = oldest;
+  }
+  slotUsed[k] = ++useClock;
+}
+
+/** Shows as many slots as fit between the menu and erase, keeping the picked material among them. */
+function fitSlots() {
+  const isShort = railEl.clientHeight < SHORT_RAIL;
+  railEl.classList.toggle('is-short', isShort);
+  const button = isShort ? SHORT_BUTTON : RAIL_BUTTON;
+  const fit = Math.floor((slotsEl.clientHeight - button) / (button + RAIL_GAP));
+  slotCount = clamp(fit, 1, SLOT_MAX);
+  if (slots.indexOf(mat) >= slotCount) seat(mat);
+  drawRail();
+}
+
+function drawRail() {
+  slotEls.forEach((b, k) => {
+    const t = slots[k];
+    b.hidden = k >= slotCount;
+    b.querySelector('.face').style.backgroundImage = swatches[t];
+    b.querySelector('.name').textContent = MAT[t].name;
+    b.title = `${MAT[t].name} (${k + 1})`;
+    b.setAttribute('aria-pressed', String(t === mat && !isErasing));
+  });
+  eraseEl.setAttribute('aria-pressed', String(isErasing));
+  for (const [t, b] of tiles) b.setAttribute('aria-pressed', String(t === mat && !isErasing));
 }
 
 function pick(t) {
   mat = t;
-  for (const [k, b] of buttons) b.setAttribute('aria-pressed', String(k === t));
+  isErasing = false;
+  seat(t);
+  saveSlots();
+  drawRail();
 }
 
+function setErasing(on) {
+  isErasing = on;
+  drawRail();
+}
+
+// The materials sheet: a tile for each paintable material, in its group, then
+// the discoveries.
+const tiles = new Map();
+for (const [t, group, tip] of TOOLS) {
+  let tilesEl = document.querySelector(`#groups [data-group="${group}"] .tiles`);
+  if (!tilesEl) {
+    const section = document.createElement('section');
+    section.className = 'group';
+    section.dataset.group = group;
+    section.innerHTML = '<h2></h2><div class="tiles"></div>';
+    section.querySelector('h2').textContent = group;
+    document.getElementById('groups').append(section);
+    tilesEl = section.querySelector('.tiles');
+  }
+  const b = document.createElement('button');
+  b.className = 'tile';
+  b.innerHTML = '<span class="sw"></span><span class="label"><small></small></span>';
+  b.querySelector('.sw').style.backgroundImage = swatches[t];
+  b.querySelector('.label').prepend(MAT[t].name);
+  b.querySelector('small').textContent = tip;
+  b.dataset.find = `${MAT[t].name} ${tip}`;
+  b.addEventListener('click', () => { pick(t); closeSheet(); });
+  tilesEl.append(b);
+  tiles.set(t, b);
+}
+
+// One sheet opens at a time beside the rail. A tap on the sandbox, Escape or
+// its close button shuts it, and that tap pours nothing.
+let sheet = null;
+const openerOf = el => document.querySelector(`[aria-controls="${el.id}"]`);
+function openSheet(el) {
+  closeSheet();
+  sheet = el;
+  el.hidden = false;
+  openerOf(el).setAttribute('aria-expanded', 'true');
+  if (el === materialsEl) allEl.classList.remove('has-new');
+}
+function closeSheet() {
+  if (sheet === null) return;
+  sheet.hidden = true;
+  openerOf(sheet).setAttribute('aria-expanded', 'false');
+  if (sheet === materialsEl) clearSearch();
+  sheet = null;
+}
+function toggleSheet(el) {
+  if (sheet === el) closeSheet();
+  else openSheet(el);
+}
+for (const b of document.querySelectorAll('.sheet .close')) b.addEventListener('click', closeSheet);
+document.getElementById('menu-btn').addEventListener('click', () => toggleSheet(menuEl));
+allEl.addEventListener('click', () => toggleSheet(materialsEl));
+sizeEl.addEventListener('click', () => toggleSheet(sizesEl));
+eraseEl.addEventListener('click', () => { setErasing(!isErasing); closeSheet(); });
+pauseEl.addEventListener('click', () => { setPaused(!paused); closeSheet(); });
+
 /**
- * Shows only the panel items that match the search. A discovery not yet made
- * stays hidden unless searched by its exact name, which reveals its recipe;
- * a locked tool stays hidden either way.
+ * Shows only the sheet's items that match the search, and only the groups
+ * with something in them. A discovery not yet made stays hidden unless
+ * searched by its exact name, which reveals its recipe; a locked material
+ * stays hidden either way.
  */
 function filter() {
   const q = searchEl.value.trim().toLowerCase();
   const isSearching = q !== '';
   let total = 0;
-  for (const group of navEl.querySelectorAll('.group')) {
+  for (const group of materialsEl.querySelectorAll('.group')) {
     let shown = 0;
     for (const item of group.querySelectorAll('[data-find], [data-secret]')) {
       const isSecret = item.dataset.secret !== undefined;
-      const isLockedTool = !isSecret && item.classList.contains('locked');
+      const isLockedTile = !isSecret && item.classList.contains('locked');
       let isMatch = true;
-      if (isLockedTool) isMatch = false;
+      if (isLockedTile) isMatch = false;
       else if (isSearching && isSecret) isMatch = q === item.dataset.secret;
       else if (isSearching) isMatch = item.dataset.find.includes(q);
       item.hidden = !isMatch;
       if (isSecret) item.classList.toggle('is-hinted', isSearching && isMatch);
       if (isMatch) shown++;
     }
-    group.hidden = isSearching && shown === 0;
+    group.hidden = shown === 0;
     total += shown;
   }
   document.getElementById('nomatch').hidden = !isSearching || total > 0;
@@ -1273,36 +1517,18 @@ function clearSearch() {
 searchEl.addEventListener('input', filter);
 searchEl.addEventListener('keydown', e => {
   if (e.key === 'Enter') {
-    const first = [...navEl.querySelectorAll('.group button')].find(b => !b.hidden);
+    const first = [...materialsEl.querySelectorAll('.tile')].find(b => !b.hidden && b.offsetParent !== null);
     if (first) first.click();
+    return;
   }
-  const isDone = e.key === 'Enter' || e.key === 'Escape';
-  if (!isDone) return;
-  clearSearch();
-  searchEl.blur();
+  if (e.key !== 'Escape') return;
+  if (searchEl.value === '') closeSheet();
+  else clearSearch();
 });
 
-let isCollapsed = false;
-function setCollapsed(c) {
-  isCollapsed = c;
-  appEl.classList.toggle('is-collapsed', c);
-  collapseEl.setAttribute('aria-expanded', String(!c));
-  collapseEl.textContent = c ? '»' : '«';
-  collapseEl.title = c ? 'unfold panel (n)' : 'fold panel (n)';
-  collapseEl.setAttribute('aria-label', collapseEl.title);
-  if (c) clearSearch();
-}
-
-// The fold state is saved only once the player picks one.
-const NAV_KEY = 'sand.nav';
-function toggleNav() {
-  setCollapsed(!isCollapsed);
-  try { localStorage.setItem(NAV_KEY, isCollapsed ? 'collapsed' : 'open'); } catch {}
-}
-collapseEl.addEventListener('click', toggleNav);
-
-// UI size scales the panel and the overlays (--ui). Until the player picks
-// one, it follows the window: 100% up to 900 px tall, up to 125% above that.
+// UI size scales the rail, the sheets and the overlays (--ui). Until the
+// player picks one, it follows the window: 100% up to 900 px tall, up to 125%
+// above that.
 const UI_KEY = 'sand.ui';
 const autoUi = () => clamp(appEl.clientHeight / 900, 1, 1.25);
 let ui = 1;
@@ -1324,23 +1550,67 @@ document.getElementById('ui-up').addEventListener('click', () => nudgeUi(0.1));
 document.getElementById('ui-value').addEventListener('click', resetUi);
 
 let toastTimer = 0;
-function toast(text) {
-  toastEl.textContent = text;
+/** Pops a message, with a button if `action` is given ({ label, run }). */
+function toast(text, action = null) {
+  toastEl.replaceChildren(text);
+  if (action !== null) {
+    const b = document.createElement('button');
+    b.textContent = action.label;
+    b.addEventListener('click', () => { toastEl.classList.remove('is-shown'); action.run(); });
+    toastEl.append(b);
+  }
   toastEl.classList.add('is-shown');
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => toastEl.classList.remove('is-shown'), 2600);
+  toastTimer = setTimeout(() => toastEl.classList.remove('is-shown'), action === null ? 2600 : 8000);
 }
+
+// Clearing or a new scene keeps the world it replaced, so one undo brings it
+// back while the grid is the same size.
+let lastWorld = null;
+function keepWorld() {
+  lastWorld = { W, H, type: type.slice(), life: life.slice(), col: col.slice(), aux: aux.slice() };
+}
+function undo() {
+  const canUndo = lastWorld !== null && lastWorld.W === W && lastWorld.H === H;
+  if (!canUndo) return;
+  type.set(lastWorld.type); life.set(lastWorld.life); col.set(lastWorld.col); aux.set(lastWorld.aux);
+  clock.fill(0);
+  blasts.length = 0;
+  lastWorld = null;
+  const parts = ['back as it was'];
+  const a = earn('undo');
+  if (a !== null) parts.push(achievementNote([a]));
+  toast(parts.join(' · '));
+}
+const UNDO = { label: 'undo', run: undo };
+function newScene() {
+  keepWorld();
+  scene();
+  closeSheet();
+  toast('new scene', UNDO);
+}
+function clearWorld() {
+  keepWorld();
+  clear();
+  closeSheet();
+  toast('cleared', UNDO);
+}
+document.getElementById('scene').addEventListener('click', newScene);
+document.getElementById('clear').addEventListener('click', clearWorld);
 
 function discover(t) {
   found.add(MAT[t].name);
   try { localStorage.setItem(FOUND_KEY, JSON.stringify([...found])); } catch {}
   showFound(t);
   const parts = [`discovered ${MAT[t].name}`];
-  if (buttons.has(t)) parts.push('now in materials');
-  if (isAllFound()) parts.push(`that's all ${SECRETS.length}`, 'clone and drain unlocked');
+  if (tiles.has(t)) parts.push('now in materials');
+  const won = checkAchievements();
+  if (won.length > 0) parts.push(achievementNote(won));
+  if (isAllFound()) parts.push('clone and drain unlocked');
   toast(parts.join(' · '));
 }
 
+/** Rebuilds the discoveries list and unlocks what's been earned; `fresh` is the one just made. */
 function showFound(fresh) {
   const rows = SECRETS.map(t => {
     const m = MAT[t];
@@ -1348,7 +1618,7 @@ function showFound(fresh) {
     if (found.has(m.name)) {
       li.dataset.find = `${m.name} ${m.how}`;
       li.innerHTML = '<span class="sw"></span><span class="label"><span></span><small></small></span>';
-      li.querySelector('.sw').style.background = m.colors[m.colors.length - 1];
+      li.querySelector('.sw').style.backgroundImage = swatches[t];
       li.querySelector('.label > span').textContent = m.name;
       li.querySelector('small').textContent = m.how;
       if (t === fresh) li.className = 'new';
@@ -1368,34 +1638,157 @@ function showFound(fresh) {
   const countEl = document.getElementById('found-count');
   countEl.textContent = `${count} / ${SECRETS.length}`;
   countEl.classList.toggle('is-complete', count === SECRETS.length);
-  for (const [t, b] of buttons) b.classList.toggle('locked', isLocked(t));
+  for (const [t, b] of tiles) b.classList.toggle('locked', isLocked(t));
   const isFinal = fresh !== undefined && isAllFound();
-  const freshTools = [fresh, ...(isFinal ? PRIZES : [])].map(t => buttons.get(t)).filter(Boolean);
-  for (const b of freshTools) {
+  const freshTiles = [fresh, ...(isFinal ? PRIZES : [])].map(t => tiles.get(t)).filter(Boolean);
+  for (const b of freshTiles) {
     b.classList.add('new');
     b.addEventListener('animationend', () => b.classList.remove('new'), { once: true });
   }
+  if (freshTiles.length > 0 && sheet !== materialsEl) allEl.classList.add('has-new');
   filter();
 }
 
-const brushEl = document.getElementById('brush');
+// Achievements, in the order the sheet lists them. Those with a `test` are
+// checked twice a second of play against `census()`, `made` and `feats`; the
+// rest are earned where they happen. None can be earned by a scene on its
+// own. Saved per browser in `sand.achieved`.
+const ACHIEVED_KEY = 'sand.achieved';
+const ACHIEVEMENTS = [
+  { id: 'halfway', name: 'halfway', goal: 'make 10 of the 19 discoveries', test: s => s.found >= 10 },
+  { id: 'all-found', name: 'every last one', goal: 'make all 19 discoveries; clone and drain join the materials',
+    test: s => s.found >= SECRETS.length },
+  { id: 'chain', name: 'chain reaction', goal: '25 blasts within a second', test: () => feats.blastBurst >= 25 },
+  { id: 'firestorm', name: 'firestorm', goal: '1,500 cells burning at once', test: s => s.fire >= 1500 },
+  { id: 'demolition', name: 'demolition', goal: 'blast away 1,000 cells of stone', test: () => feats.stoneBlasted >= 1000 },
+  { id: 'storm', name: 'storm', goal: 'a cloud strikes on its own', test: () => feats.selfStrikes > 0 },
+  { id: 'rod', name: 'lightning rod', goal: 'a bolt runs through 200 cells of metal and lights something',
+    test: () => feats.longestRod >= 200 },
+  { id: 'glass', name: 'glassblower', goal: 'make 1,000 cells of glass', test: () => made[GLASS] >= 1000 },
+  { id: 'salt', name: 'salt flats', goal: 'boil brine down to 200 grains of salt', test: () => made[SALT] >= 200 },
+  { id: 'rust', name: 'shipwreck', goal: 'rust 100 cells of metal', test: () => made[RUST] >= 100 },
+  { id: 'flowers', name: 'green thumb', goal: '30 flowers in bloom at once', test: s => s.hearts >= 30 },
+  { id: 'bees', name: 'beekeeper', goal: '12 bees at once', test: s => s.bees >= 12 },
+  { id: 'honey', name: 'sweet tooth', goal: 'bees make 300 cells of honey', test: () => made[HONEY] >= 300 },
+  { id: 'palette', name: 'full palette', goal: '20 different materials on screen at once', test: s => s.kinds >= 20 },
+  { id: 'perpetual', name: 'perpetual motion', goal: 'a drain swallows 1,000 cells while a clone pours',
+    test: s => s.drainedWhilePouring >= 1000 },
+  { id: 'undo', name: 'second thoughts', goal: 'undo a clear or a new scene', isSecret: true },
+  { id: 'rainbow', name: 'rainbow', goal: 'the old code: ↑ ↑ ↓ ↓ ← → ← → b a', isSecret: true },
+];
+let achieved = new Set();
+try { achieved = new Set(JSON.parse(localStorage.getItem(ACHIEVED_KEY) || '[]')); } catch {}
+const achievementNote = won => `achievement: ${won.map(a => a.name).join(', ')}`;
+
+let pourStart = 0; // what drains had swallowed when the clones last started pouring
+
+/** Counts what's on screen that achievements look for. */
+function census() {
+  let fire = 0, bees = 0, hearts = 0, isPouring = false;
+  const seen = new Uint8Array(MAT.length);
+  for (let i = 0; i < N; i++) {
+    const t = type[i];
+    seen[t] = 1;
+    if (t === FIRE) fire++;
+    else if (t === BEE) bees++;
+    else if (t === FLOWER && col[i] === FLOWER_HEART) hearts++;
+    else if (t === CLONE && life[i] !== E) isPouring = true;
+  }
+  if (!isPouring) pourStart = feats.swallowed;
+  return {
+    found: SECRETS.filter(t => found.has(MAT[t].name)).length,
+    fire, bees, hearts,
+    kinds: seen.reduce((sum, v) => sum + v, 0) - seen[E],
+    drainedWhilePouring: feats.swallowed - pourStart,
+  };
+}
+
+/** Marks an achievement earned, flashing it unless `isFresh` is false; returns it if that's news, otherwise null. */
+function earn(id, isFresh = true) {
+  if (achieved.has(id)) return null;
+  achieved.add(id);
+  try { localStorage.setItem(ACHIEVED_KEY, JSON.stringify([...achieved])); } catch {}
+  showAchievements(isFresh ? id : undefined);
+  return ACHIEVEMENTS.find(a => a.id === id);
+}
+
+/** Earns every achievement whose test passes and returns them; the caller says so. */
+function checkAchievements(isFresh = true) {
+  const s = census();
+  const won = ACHIEVEMENTS.filter(a => a.test !== undefined && !achieved.has(a.id) && a.test(s));
+  for (const a of won) earn(a.id, isFresh);
+  return won;
+}
+
+/** Rebuilds the achievements list; `fresh` is the one just earned. A secret shows as "?" until then. */
+function showAchievements(fresh) {
+  const rows = ACHIEVEMENTS.map(a => {
+    const isEarned = achieved.has(a.id);
+    const isHidden = a.isSecret === true && !isEarned;
+    const li = document.createElement('li');
+    li.innerHTML = '<span class="mark"></span><span class="label"><span></span><small></small></span>';
+    li.querySelector('.label > span').textContent = isHidden ? '?' : a.name;
+    li.querySelector('small').textContent = isHidden ? 'a secret' : a.goal;
+    li.dataset.find = isHidden ? 'secret' : `${a.name} ${a.goal}`;
+    li.classList.toggle('earned', isEarned);
+    li.classList.toggle('new', a.id === fresh);
+    return li;
+  });
+  document.getElementById('achievements').replaceChildren(...rows);
+  const count = ACHIEVEMENTS.filter(a => achieved.has(a.id)).length;
+  const countEl = document.getElementById('achieved-count');
+  countEl.textContent = `${count} / ${ACHIEVEMENTS.length}`;
+  countEl.classList.toggle('is-complete', count === ACHIEVEMENTS.length);
+  if (fresh !== undefined && sheet !== materialsEl) allEl.classList.add('has-new');
+  filter();
+}
+
+// Brush widths on screen, in px, that the size sheet offers; the wheel and
+// [ ] step between them.
+const SIZES = [6, 14, 28, 56];
+const cellPx = () => cv.getBoundingClientRect().width / W;
+const widthToRadius = px => clamp(Math.round((px / cellPx() - 1) / 2), 0, 30);
+const dotFor = px => clamp(Math.round(4 + px / 2.7), 5, 26); // the dot that stands for a brush px wide
+const sizeDotEl = document.getElementById('size-dot');
+const sizeBtns = SIZES.map(px => {
+  const b = document.createElement('button');
+  b.setAttribute('aria-label', `brush ${px} px across`);
+  b.innerHTML = '<span class="dot"></span>';
+  b.firstChild.style.width = b.firstChild.style.height = `${dotFor(px)}px`;
+  b.addEventListener('click', () => { setBrush(widthToRadius(px)); closeSheet(); });
+  document.getElementById('size-options').append(b);
+  return b;
+});
+
 function setBrush(r) {
   brush = clamp(r, 0, 30);
-  brushEl.value = brush;
-  document.getElementById('size').textContent = brush * 2 + 1;
+  const px = (2 * brush + 1) * cellPx();
+  sizeDotEl.style.width = sizeDotEl.style.height = `${dotFor(px)}px`;
+  let near = 0;
+  SIZES.forEach((s, k) => { if (Math.abs(s - px) < Math.abs(SIZES[near] - px)) near = k; });
+  sizeBtns.forEach((b, k) => b.setAttribute('aria-pressed', String(k === near)));
 }
-brushEl.addEventListener('input', () => setBrush(+brushEl.value));
+
+/** The strip shows what's under the brush while a pointer is over the sandbox, and pause. */
+function showHud() {
+  hudEl.hidden = underWrapEl.hidden && stateEl.textContent === '';
+}
 
 function showState() {
   const parts = [];
   if (paused) parts.push('paused');
   if (isRainbow) parts.push('rainbow sand');
-  document.getElementById('state').textContent = parts.join(' · ');
+  stateEl.textContent = parts.join(' · ');
+  showHud();
 }
 
+const PAUSE_ICON = '<svg viewBox="0 0 24 24"><path d="M9 6v12M15 6v12"/></svg>';
+const PLAY_ICON = '<svg viewBox="0 0 24 24"><path d="M8.5 5.5v13l10-6.5z"/></svg>';
 function setPaused(p) {
   paused = p;
-  document.querySelector('#pause .label').textContent = p ? 'play' : 'pause';
+  pauseEl.querySelector('.face').innerHTML = p ? PLAY_ICON : PAUSE_ICON;
+  pauseEl.querySelector('.name').textContent = p ? 'play' : 'pause';
+  pauseEl.title = `${p ? 'play' : 'pause'} (space)`;
   showState();
 }
 
@@ -1411,7 +1804,10 @@ function trackKonami(key) {
   konami = 0;
   isRainbow = !isRainbow;
   if (isRainbow) pick(SAND);
-  toast(isRainbow ? 'rainbow sand' : 'plain sand again');
+  const parts = [isRainbow ? 'rainbow sand' : 'plain sand again'];
+  const a = isRainbow ? earn('rainbow') : null;
+  if (a !== null) parts.push(achievementNote([a]));
+  toast(parts.join(' · '));
   showState();
   return true;
 }
@@ -1437,9 +1833,9 @@ function dab(cx, cy, erase) {
       const x = cx + dx, y = cy + dy;
       if (x < 0 || x >= W || y < 0 || y >= H) continue;
       const i = y * W + x;
-      if (erase) { set(i, E); continue; }
+      if (erase) { place(i, E); continue; }
       if (type[i] !== E || rnd() > fill) continue;
-      set(i, mat, startLife(mat));
+      place(i, mat, startLife(mat));
       if (isRainbowSand) col[i] = rainbow((hue + x / 60) % 1);
     }
   }
@@ -1461,9 +1857,10 @@ function paint(p) {
 // otherwise skip whole stretches.
 cv.addEventListener('pointerdown', e => {
   e.preventDefault();
+  if (sheet !== null) { closeSheet(); return; }
   try { cv.setPointerCapture(e.pointerId); } catch {} // throws for pointers the browser no longer tracks
   const c = cell(e);
-  const isErase = e.button === 2 || mat === E;
+  const isErase = e.button === 2 || isErasing;
   const p = { x: c.x, y: c.y, lx: c.x, ly: c.y, erase: isErase };
   pointers.set(e.pointerId, p);
   hover = c;
@@ -1495,26 +1892,27 @@ cv.addEventListener('wheel', e => {
 
 addEventListener('keydown', e => {
   const isTyping = e.target === searchEl;
-  if (e.ctrlKey || e.metaKey || e.altKey || isTyping) return;
-  if (trackKonami(e.key.toLowerCase())) return; // its last key, a, is also acid's
-  const tool = TOOLS.find(([t, key]) => key === e.key && !isLocked(t));
-  if (tool) { pick(tool[0]); return; }
+  if (isTyping || e.altKey) return;
+  const isUndo = (e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z';
+  if (isUndo) { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey) return;
+  if (trackKonami(e.key.toLowerCase())) return;
+  const slot = '123456789'.indexOf(e.key);
+  if (slot >= 0 && slot < slotCount) { pick(slots[slot]); return; }
   switch (e.key) {
     case ' ': e.preventDefault(); setPaused(!paused); break;
-    case 'c': clear(); break;
-    case 'r': scene(); break;
-    case 'n': toggleNav(); break;
+    case 'e': setErasing(!isErasing); break;
+    case 'c': clearWorld(); break;
+    case 'r': newScene(); break;
     case '-': nudgeUi(-0.1); break;
     case '=':
     case '+': nudgeUi(0.1); break;
-    case '/': e.preventDefault(); setCollapsed(false); searchEl.focus(); break;
+    case '/': e.preventDefault(); openSheet(materialsEl); searchEl.focus(); break;
+    case 'Escape': closeSheet(); break;
     case '[': setBrush(brush - 1); break;
     case ']': setBrush(brush + 1); break;
   }
 });
-document.getElementById('pause').addEventListener('click', () => setPaused(!paused));
-document.getElementById('clear').addEventListener('click', () => clear());
-document.getElementById('scene').addEventListener('click', () => scene());
 
 // --- app -------------------------------------------------------------------
 
@@ -1525,7 +1923,7 @@ if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
 }
 
 // Browsers that can install the app say so with this event. The button only
-// exists while that offer stands, so search never finds a dead one.
+// exists in the menu while that offer stands.
 let installOffer = null;
 addEventListener('beforeinstallprompt', e => {
   e.preventDefault();
@@ -1533,7 +1931,6 @@ addEventListener('beforeinstallprompt', e => {
   if (document.getElementById('install')) return;
   const b = document.createElement('button');
   b.id = 'install';
-  b.dataset.find = 'install app offline';
   b.innerHTML = '<span class="label">install <small>play offline, own window</small></span>';
   b.addEventListener('click', async () => {
     if (!installOffer) return;
@@ -1542,8 +1939,7 @@ addEventListener('beforeinstallprompt', e => {
     installOffer = null;
     b.remove();
   });
-  document.querySelector('#clear').after(b);
-  filter();
+  document.getElementById('clear').after(b);
 });
 addEventListener('appinstalled', () => document.getElementById('install')?.remove());
 
@@ -1573,7 +1969,7 @@ const SKY = 85;
 
 /**
  * A new random scene each call, drawn on a 300 × 180 plan. The plan is scaled
- * evenly to fit right of the panel, so nothing starts out under it, and stands
+ * evenly to fit right of the rail, so nothing starts out under it, and stands
  * on the bottom edge; the ground runs the full width. Walls stay 3 cells thick.
  *
  * Up to two discoveries stand in it as hints, mostly ones not found yet.
@@ -1585,7 +1981,7 @@ const SKY = 85;
 function scene() {
   clear();
   const box = cv.getBoundingClientRect();
-  const x0 = Math.min(W >> 1, Math.ceil((navEl.getBoundingClientRect().right - box.left) / (box.width / W)));
+  const x0 = Math.min(W >> 1, Math.ceil((railEl.getBoundingClientRect().right - box.left) / (box.width / W)));
   const k = Math.min((W - 1 - x0) / 300, (H - 1) / 180);
   const left = x0 + ((W - 1 - x0) - 300 * k) / 2, top = (H - 1) - 180 * k;
   const X = v => Math.round(left + v * k);
@@ -1774,7 +2170,7 @@ function render() {
   ctx.putImageData(img, 0, 0);
   const rings = pointers.size ? [...pointers.values()] : [hover].filter(Boolean);
   if (!rings.length) return;
-  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.strokeStyle = isErasing ? 'rgba(255,140,140,0.7)' : 'rgba(255,255,255,0.45)';
   ctx.lineWidth = 0.6;
   ctx.beginPath();
   for (const r of rings) {
@@ -1788,7 +2184,7 @@ const underEl = document.getElementById('under');
 let shownUnder = '';
 function showUnder() {
   const isInside = hover && hover.x >= 0 && hover.x < W && hover.y >= 0 && hover.y < H;
-  let name = '—';
+  let name = '';
   if (isInside) {
     const i = hover.y * W + hover.x, t = type[i];
     name = MAT[t].name;
@@ -1796,12 +2192,15 @@ function showUnder() {
     if (isPouring) name += ` of ${MAT[life[i]].name}`;
   }
   if (name === shownUnder) return;
-  underEl.textContent = name;
   shownUnder = name;
+  underEl.textContent = name;
+  underWrapEl.hidden = name === '';
+  showHud();
 }
 
 const DT = 1000 / 60;
 let last = performance.now(), acc = 0;
+let nextCheck = 0; // the age at which achievements are next checked
 function frame(now) {
   acc = Math.min(acc + now - last, DT * 3);
   last = now;
@@ -1809,6 +2208,11 @@ function frame(now) {
     for (const p of pointers.values()) paint(p);
     if (!paused) step();
     acc -= DT;
+  }
+  if (age >= nextCheck) {
+    nextCheck = age + 30;
+    const won = checkAchievements();
+    if (won.length > 0) toast(achievementNote(won));
   }
   render();
   showUnder();
@@ -1822,19 +2226,17 @@ new ResizeObserver(() => {
   clearTimeout(reshapeTimer);
   reshapeTimer = setTimeout(shapeGrid, 150);
 }).observe(stageEl);
-let savedUi = NaN, savedNav = null;
-try {
-  savedUi = parseFloat(localStorage.getItem(UI_KEY));
-  savedNav = localStorage.getItem(NAV_KEY);
-} catch {}
+let savedUi = NaN;
+try { savedUi = parseFloat(localStorage.getItem(UI_KEY)); } catch {}
 setUi(savedUi > 0 ? savedUi : autoUi());
-// Folded by default where the open panel would cover too much.
-const isCramped = navEl.offsetWidth * ui > appEl.clientWidth / 4;
-setCollapsed(savedNav === null ? isCramped : savedNav === 'collapsed');
+settleSlots();
 showFound();
-pick(SAND);
-// About a fingertip across on screen, whatever the cell size.
-setBrush(clamp(Math.round(15 / (cv.getBoundingClientRect().width / W)), 2, 12));
+showAchievements();
+checkAchievements(false); // earns, without a fuss, what discoveries made before these existed
+fitSlots();
+new ResizeObserver(fitSlots).observe(slotsEl);
+pick(slots[0]);
+setBrush(widthToRadius(SIZES[1])); // about a fingertip across, whatever the cell size
 setPaused(false);
 scene();
 requestAnimationFrame(frame);
