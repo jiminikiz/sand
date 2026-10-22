@@ -5,30 +5,33 @@ installs as an app and plays offline (see "App" below).
 
 ## Materials
 
-| Material | Key | Behaviour                                                                 |
-| -------- | --- | ------------------------------------------------------------------------- |
-| sand     | 1   | Powder. Sinks slowly through liquids.                                     |
-| water    | 2   | Liquid. Puts out fire (smoke, some steam), quenches lava (obsidian, steam). |
-| oil      | 3   | Liquid, floats on water. Burns slowly; burning oil stays put and flames.  |
-| acid     | a   | Liquid. Eats what it touches, 10 bites each, except glass. Water dilutes it. |
-| fire     | 4   | Stays on fuel and throws flames and embers; loose fire drifts up & dies.  |
-| plant    | 5   | Drinks touching water into more plant; spare water sprouts upward.        |
-| seed     | 6   | Falls like sand. On sand with water touching it, sprouts a stem.          |
-| stone    | 7   | Static.                                                                   |
-| lava     | 8   | Viscous. Ignites fuel, melts sand to glass, crusts to stone doing it.     |
-| ice      | 9   | Freezes water with a limited cold budget; melts near anything hot.        |
-| smoke    | no  | left by fire as it dies or meets water. The easy first discovery.         |
-| steam    | no  | water meeting fire, lava or an ember. Rises, condenses back to rain.      |
-| glass    | no  | lava + sand                                                               |
-| obsidian | no  | lava + water                                                              |
-| ember    | no  | thrown by fire on fuel; arcs 30–60 cells and lights fuel it lands on      |
-| snow     | no  | steam + ice. Falls, floats on water, melts near heat.                     |
-| fume     | no  | a quarter of what acid eats goes up as this green gas                     |
-| flower   | no  | top of a seed's stem: a yellow heart, one petal colour per bloom          |
+| Material | Key          | Behaviour                                                                 |
+| -------- | ------------ | ------------------------------------------------------------------------- |
+| sand     | 1            | Powder. Sinks slowly through liquids.                                     |
+| water    | 2            | Liquid. Puts out fire (smoke, some steam), quenches lava (obsidian, steam). |
+| oil      | 3            | Liquid, floats on water. Burns slowly; burning oil stays put and flames.  |
+| acid     | a            | Liquid. Eats what it touches, 10 bites each, except glass. Water dilutes it. |
+| fire     | 4            | Stays on fuel and throws flames and embers; loose fire drifts up & dies.  |
+| seed     | 6            | Falls like sand. On sand with water touching it, sprouts a stem.          |
+| stone    | 7            | Static.                                                                   |
+| lava     | 8            | Viscous. Ignites fuel, melts sand to glass, crusts to stone doing it.     |
+| ice      | 9            | Freezes water with a limited cold budget; melts near anything hot.        |
+| smoke    | no           | left by fire as it dies or meets water. The easy first discovery.         |
+| steam    | no           | water meeting fire, lava or an ember. Rises, half condenses into rain.    |
+| rain     | no           | steam condensing. Falls through air and gas, turns to water on landing.   |
+| plant    | 5, once found | seed + water on sand. Drinks touching water into more plant; spare water sprouts upward. |
+| glass    | g, once found | lava + sand. Static; acid can't eat it.                                  |
+| obsidian | o, once found | lava + water. Static; acid barely eats it.                               |
+| ember    | no           | thrown by fire on fuel; arcs 30–60 cells and lights fuel it lands on      |
+| snow     | s, once found | steam + ice. Falls, floats on water, melts near heat.                    |
+| fume     | no           | a quarter of what acid eats goes up as this green gas                     |
+| flower   | no           | top of a seed's stem: a yellow heart, one petal colour per bloom          |
 
-The eight unpaintable ones are the discoveries (`SECRETS`), saved per browser
-in `localStorage` under `sand.found`. Each has a `how` in `MAT`, shown once
-found.
+The ten discoveries (`SECRETS`) are saved per browser in `localStorage` under
+`sand.found`. Each has a `how` in `MAT`, shown once found. A discovery that is
+also in `TOOLS` (plant, glass, obsidian, snow) joins the materials once found;
+until then its button stays out of the panel, search included, and its key
+does nothing. The rest are never paintable.
 
 ## How the code works
 
@@ -37,6 +40,10 @@ found.
   changes size (see below).
 - `life` means something different per material: fire/smoke/steam/fume
   lifetime, plant sap, ice cold budget, ember flight time, acid bites left.
+- Discovering takes a reaction. Reactions make cells with `set()`, which
+  credits a secret; `place()` puts a cell down without crediting. Scenes
+  place, and so does plant spreading from plant, so plant is discovered only
+  by a seed sprouting.
 - Acid's `etch` table is the chance per bite of eating each material. Glass
   is missing from it on purpose: it's what you keep acid in.
 - Plant sap from drinking water is 0–6. A seed sprouts with `STEM` + 6–18;
@@ -55,18 +62,28 @@ found.
 - `scene()` (on load, and `r`) rolls a new one: rolling sand over a thin
   bedrock, then ground pieces left to right in a shuffled order while they
   fit, then up to one ledge in each half of the sky.
-- The pieces: a basin (water under oil, water under ice, an oil tank, or
-  water with a plant at one end), a lake dug into the ground, a stone mound
-  with lava sealed inside, and a planter of dry sand with seeds on it.
+- The pieces: a basin (water under oil, water under ice, or an oil tank), a
+  lake dug into the ground, a stone mound with lava sealed inside, and a
+  planter of dry sand with seeds on it.
   Basins and planters stand on the highest ground under them, half the time
   up on legs. Nothing on the ground rises past `SKY`, where the ledges float.
-- `set()` counts any secret it places as discovered, so a scene never
-  places one or sets one off: lava has 3 cells of stone on every side, seeds
-  sit dry, and there is no acid, since only a glass jar would hold it.
+- Hints: up to two discoveries stand in a scene (none 20%, one 60%, two 20%),
+  each in place of a piece of its kind. Plant is reeds in a basin of water,
+  glass a jar of acid, obsidian a cap on the lava mound, snow lying on an iced
+  basin. Ones not found yet are three times as likely. Hovering one names it,
+  and searching that name gives its recipe, so nothing has to call it a hint.
+  Flower is left out: one bloom gives away the whole seed chain.
+- A scene only places cells, so a hint isn't a discovery. Nothing reacts at
+  the start either, since a reaction would be: lava has 3 cells of stone on
+  every side, seeds sit dry, and acid comes only in a glass jar.
 - Ground waves and lake banks stay under 45°, so no sand slides at the start.
 - Checked in Brave: 60 scenes each at 300×180, 214×160, 158×341 and 341×158
-  cells, 300 ticks apiece. No secret was made, and nothing changed but water
-  turning to ice or plant.
+  cells, 300 ticks apiece, before hints: no secret made, nothing changed but
+  water turning to ice or plant. With hints, at 300×180: 2000 scenes gave
+  none 19%, one 62%, two 19%, and with plant found, plant a third as often;
+  60 run for 300 ticks discovered nothing, with only ice freezing and reeds
+  growing. A placed plant watered for 1200 ticks grew and stayed
+  undiscovered; seeds on wet sand still discovered it.
 
 ## Layout
 

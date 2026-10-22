@@ -105,8 +105,8 @@
   #found li .name-hint, #found li .how-hint { display: none; }
   #found li.is-hinted .name-hint, #found li.is-hinted .how-hint { display: inline; }
   #found li.is-hinted :is(.name-q, .how-q) { display: none; }
-  #found li.new { animation: found 1.6s ease-out; border-radius: 6px; }
-  @keyframes found { from { background: #e9c46a33; } to { background: transparent; } }
+  #found li.new, #tools button.new { animation: found 1.6s ease-out; border-radius: 6px; }
+  @keyframes found { from { background: #e9c46a33; } } /* back to the item's own background */
   #found-count.is-complete { color: var(--focus); }
 
   .help { color: var(--faint); font-size: 12px; display: flex; flex-direction: column; gap: 3px; }
@@ -179,6 +179,9 @@
         <button data-mat="stone" data-find><span class="sw"></span><span class="label">stone <small>stays put</small></span><kbd>7</kbd></button>
         <button data-mat="lava" data-find><span class="sw"></span><span class="label">lava <small>lights fuel, melts sand</small></span><kbd>8</kbd></button>
         <button data-mat="ice" data-find><span class="sw"></span><span class="label">ice <small>freezes water, fears heat</small></span><kbd>9</kbd></button>
+        <button data-mat="snow" data-find><span class="sw"></span><span class="label">snow <small>floats on water, thaws</small></span><kbd>s</kbd></button>
+        <button data-mat="glass" data-find><span class="sw"></span><span class="label">glass <small>holds acid, stays put</small></span><kbd>g</kbd></button>
+        <button data-mat="obsidian" data-find><span class="sw"></span><span class="label">obsidian <small>stone that acid barely eats</small></span><kbd>o</kbd></button>
         <button data-mat="empty" data-find="erase empty rub out 0"><span class="sw erase"></span><span class="label">erase <small>rub things out</small></span><kbd>0</kbd></button>
       </div>
     </section>
@@ -286,7 +289,8 @@ function shapeGrid() {
 // --- materials -------------------------------------------------------------
 
 const E = 0, STONE = 1, SAND = 2, WATER = 3, OIL = 4, FIRE = 5, PLANT = 6, SMOKE = 7, STEAM = 8, LAVA = 9,
-  GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16, ACID = 17, FUME = 18;
+  GLASS = 10, OBSIDIAN = 11, EMBER = 12, ICE = 13, SNOW = 14, SEED = 15, FLOWER = 16, ACID = 17, FUME = 18,
+  RAIN = 19;
 
 // `how` is the recipe a discovery shows once it has been made.
 const MAT = [
@@ -296,19 +300,20 @@ const MAT = [
   { name: 'water', dens: 3, colors: ['#2f6fd6', '#3477e0', '#2b68cc'] },
   { name: 'oil',   dens: 2, colors: ['#5e4226', '#684a2b', '#533a21'] },
   { name: 'fire',  dens: 0, colors: ['#ff6a00'] },
-  { name: 'plant', dens: 9, colors: ['#3f9b3a', '#48a843', '#378a33', '#52b54b'] },
+  { name: 'plant', dens: 9, how: 'a seed on wet sand', colors: ['#3f9b3a', '#48a843', '#378a33', '#52b54b'] },
   { name: 'smoke', dens: 0, how: 'fire dying out, or doused', colors: ['#8a8f9a'] }, // drawn from smokePal
   { name: 'steam', dens: 0, how: 'water on fire, lava or embers', colors: ['#c9d6e8', '#d5e0ee', '#bccbe0'] },
   { name: 'lava',  dens: 4, colors: ['#ff5a1f', '#ff7b26', '#e8401a', '#ff9a3c'] },
   { name: 'glass', dens: 9, how: 'lava melting sand', colors: ['#9fd3dc', '#aedbe3', '#93c8d2', '#b9e3ea', '#a3d6df', '#e8fbff'] },
-  { name: 'obsidian', dens: 9, how: 'water quenching lava', colors: ['#2a2238', '#31283f', '#372d47', '#2d2540', '#3c3150', '#7d6a9c'] },
+  { name: 'obsidian', dens: 9, how: 'water quenching lava', colors: ['#3c3150', '#31283f', '#372d47', '#2d2540', '#2a2238', '#7d6a9c'] },
   { name: 'ember', dens: 0, how: 'thrown by fire with fuel under it', colors: ['#ffb43a'] },
   { name: 'ice',   dens: 9, colors: ['#c3e2fb', '#b6d9f6', '#cfe8fc', '#bcdcf8'] },
   { name: 'snow',  dens: 2, how: 'steam touching ice', colors: ['#eef3fa', '#e2eaf5', '#f7f9fc'] },
   { name: 'seed',  dens: 4, colors: ['#8c8a3e', '#7d7b35', '#9a9848'] },
-  { name: 'flower', dens: 9, how: 'a seed on wet sand, given time', colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
+  { name: 'flower', dens: 9, how: 'a sprouted seed, given time', colors: ['#7fb3ff', '#b48ef0', '#f4f1ea', '#ff8a65', '#f6a5c0'] },
   { name: 'acid',  dens: 3, colors: ['#a6e22e', '#9bd427', '#b3ec3f'] },
   { name: 'fume',  dens: 0, how: 'acid eating something', colors: ['#6f8b34', '#7c9a3c', '#88a845'] },
+  { name: 'rain',  dens: 3, how: 'steam cooling off', colors: ['#6f9ce6', '#7ea8ec', '#8cb4f0'] },
 ];
 
 const rgb = (r, g, b) => (0xff000000 | (b << 16) | (g << 8) | r) >>> 0;
@@ -346,8 +351,9 @@ const hot = new Uint8Array(MAT.length);
 hot[FIRE] = hot[EMBER] = hot[LAVA] = 1;
 
 // Materials you can only get by making them, roughly easiest first. The
-// discoveries list tracks these, saved per browser.
-const SECRETS = [SMOKE, STEAM, GLASS, OBSIDIAN, EMBER, SNOW, FUME, FLOWER];
+// discoveries list tracks these, saved per browser. Those in TOOLS join the
+// materials once found.
+const SECRETS = [SMOKE, STEAM, RAIN, PLANT, GLASS, OBSIDIAN, EMBER, SNOW, FUME, FLOWER];
 const secret = new Uint8Array(MAT.length);
 for (const t of SECRETS) secret[t] = 1;
 
@@ -389,13 +395,19 @@ const dir = () => (rnd() < 0.5 ? -1 : 1);
 
 let tick = 1;
 
-function set(i, t, l = 0) {
+/** Puts a cell down without discovering it: a scene, or more of something already there. */
+function place(i, t, l = 0) {
   type[i] = t;
   life[i] = l;
   const s = shades[t];
   col[i] = s[(rnd() * s.length) | 0];
   vel[i] = 0;
   clock[i] = tick;
+}
+
+/** Every reaction makes cells through here, so making a secret discovers it. */
+function set(i, t, l = 0) {
+  place(i, t, l);
   if (secret[t] === 1 && !found.has(MAT[t].name)) discover(t);
 }
 
@@ -646,11 +658,12 @@ function seed(i, x, y) {
 // A plant drinks neighbouring water and turns it into more plant. Fresh growth
 // carries a little stored water in `life`, which it spends sprouting upward.
 // A stem climbs the same way until its sap is down to STEM, then blooms.
+// Growth is placed, not set: plant is discovered only by sprouting a seed.
 function plant(i, x, y) {
   if (rnd() > 0.1) return;
   const n = nb(i, x, y, (rnd() * 4) | 0);
   if (n >= 0 && type[n] === WATER) {
-    set(n, PLANT, (rnd() * 7) | 0);
+    place(n, PLANT, (rnd() * 7) | 0);
     return;
   }
   const sap = life[i];
@@ -662,7 +675,7 @@ function plant(i, x, y) {
   if (type[j] !== E) return;
   life[i] = 0;
   if (sap === STEM) bloom(j, nx, y - 1);
-  else set(j, PLANT, sap - 1);
+  else place(j, PLANT, sap - 1);
 }
 
 /** A yellow heart with one petal colour on each open side. */
@@ -683,7 +696,7 @@ function gas(i, x, y, t) {
   const l = life[i] - 1;
   if (l <= 0) {
     const isRain = t === STEAM && rnd() < 0.5;
-    if (isRain) set(i, WATER);
+    if (isRain) set(i, RAIN);
     else set(i, E);
     return;
   }
@@ -700,6 +713,16 @@ function gas(i, x, y, t) {
   }
   const d = dir();
   if (x + d >= 0 && x + d < W && type[i + d] === E) swap(i, i + d);
+}
+
+// A drop of condensed steam falls straight through air and gas, and turns to
+// water on whatever it lands on, so water's own reactions take it from there.
+function rain(i, x, y) {
+  if (y === H - 1) { set(i, WATER); return; }
+  const u = type[i + W];
+  const isOpen = u === E || u === SMOKE || u === STEAM || u === FUME;
+  if (isOpen) swap(i, i + W);
+  else if (u !== RAIN) set(i, WATER); // behind another drop, it waits
 }
 
 /** Scans bottom-up, alternating sides each tick. `clock[i] === tick` marks a cell already moved. */
@@ -725,6 +748,7 @@ function step() {
         case SEED: seed(i, x, y); break;
         case PLANT: plant(i, x, y); break;
         case ACID: acid(i, x, y); break;
+        case RAIN: rain(i, x, y); break;
         case SMOKE:
         case STEAM:
         case FUME: gas(i, x, y, t); break;
@@ -737,9 +761,13 @@ function step() {
 
 const TOOLS = [
   [SAND, '1'], [WATER, '2'], [OIL, '3'], [ACID, 'a'], [FIRE, '4'], [PLANT, '5'],
-  [SEED, '6'], [STONE, '7'], [LAVA, '8'], [ICE, '9'], [E, '0'],
+  [SEED, '6'], [STONE, '7'], [LAVA, '8'], [ICE, '9'], [SNOW, 's'], [GLASS, 'g'],
+  [OBSIDIAN, 'o'], [E, '0'],
 ];
-const LOOSE = new Set([SAND, WATER, OIL, ACID, FIRE, LAVA, SEED]);
+const LOOSE = new Set([SAND, WATER, OIL, ACID, FIRE, LAVA, SEED, SNOW]);
+
+/** A secret is out of the panel, and its key does nothing, until it's found. */
+const isUnfound = t => secret[t] === 1 && !found.has(MAT[t].name);
 
 let mat = SAND;
 let brush = 4;
@@ -770,7 +798,8 @@ function pick(t) {
 
 /**
  * Shows only the panel items that match the search. A discovery not yet made
- * stays hidden unless searched by its exact name, which reveals its recipe.
+ * stays hidden unless searched by its exact name, which reveals its recipe;
+ * its material button stays hidden either way.
  */
 function filter() {
   const q = searchEl.value.trim().toLowerCase();
@@ -780,8 +809,10 @@ function filter() {
     let shown = 0;
     for (const item of group.querySelectorAll('[data-find], [data-secret]')) {
       const isLocked = item.dataset.secret !== undefined;
+      const isUnfoundTool = item.classList.contains('unfound');
       let isMatch = true;
-      if (isSearching && isLocked) isMatch = q === item.dataset.secret;
+      if (isUnfoundTool) isMatch = false;
+      else if (isSearching && isLocked) isMatch = q === item.dataset.secret;
       else if (isSearching) isMatch = item.dataset.find.includes(q);
       item.hidden = !isMatch;
       if (isLocked) item.classList.toggle('is-hinted', isSearching && isMatch);
@@ -863,9 +894,11 @@ function discover(t) {
   found.add(MAT[t].name);
   try { localStorage.setItem(FOUND_KEY, JSON.stringify([...found])); } catch {}
   showFound(t);
+  const parts = [`discovered ${MAT[t].name}`];
+  if (buttons.has(t)) parts.push('now in materials');
   const isAll = SECRETS.every(s => found.has(MAT[s].name));
-  if (isAll) toast(`discovered ${MAT[t].name} · that's all ${SECRETS.length}`);
-  else toast(`discovered ${MAT[t].name}`);
+  if (isAll) parts.push(`that's all ${SECRETS.length}`);
+  toast(parts.join(' · '));
 }
 
 function showFound(fresh) {
@@ -895,6 +928,12 @@ function showFound(fresh) {
   const countEl = document.getElementById('found-count');
   countEl.textContent = `${count} / ${SECRETS.length}`;
   countEl.classList.toggle('is-complete', count === SECRETS.length);
+  for (const [t, b] of buttons) b.classList.toggle('unfound', isUnfound(t));
+  const freshTool = buttons.get(fresh);
+  if (freshTool) {
+    freshTool.classList.add('new');
+    freshTool.addEventListener('animationend', () => freshTool.classList.remove('new'), { once: true });
+  }
   filter();
 }
 
@@ -1013,7 +1052,7 @@ addEventListener('keydown', e => {
   const isTyping = e.target === searchEl;
   if (e.ctrlKey || e.metaKey || e.altKey || isTyping) return;
   if (trackKonami(e.key.toLowerCase())) return; // its last key, a, is also acid's
-  const tool = TOOLS.find(([, key]) => key === e.key);
+  const tool = TOOLS.find(([t, key]) => key === e.key && !isUnfound(t));
   if (tool) { pick(tool[0]); return; }
   switch (e.key) {
     case ' ': e.preventDefault(); setPaused(!paused); break;
@@ -1072,7 +1111,7 @@ function clear() {
 function rect(x0, y0, x1, y1, t) {
   for (let y = y0; y <= y1; y++)
     for (let x = x0; x <= x1; x++)
-      set(y * W + x, t, startLife(t));
+      place(y * W + x, t, startLife(t));
 }
 
 const between = (a, b) => a + rnd() * (b - a);
@@ -1093,9 +1132,10 @@ const SKY = 85;
  * evenly to fit right of the panel, so nothing starts out under it, and stands
  * on the bottom edge; the ground runs the full width. Walls stay 3 cells thick.
  *
- * Nothing in it reacts at the start, so every discovery is left to the player:
- * `set()` counts any secret it places as found. Lava is sealed in stone, seeds
- * sit dry, and acid never appears, since only a glass jar would hold it.
+ * Up to two discoveries stand in it as hints, mostly ones not found yet.
+ * Seeing one doesn't discover it: the scene only places cells, and discovering
+ * takes a reaction. So nothing reacts at the start: lava is sealed in stone,
+ * seeds sit dry, and acid comes only in a glass jar.
  */
 function scene() {
   clear();
@@ -1134,37 +1174,50 @@ function scene() {
     return floor - (isOnLegs ? Math.round(rnd() * room) : 0);
   }
 
-  function stoneBox(l, r, rim, floor) {
-    rect(l, rim, l + 2, floor, STONE);
-    rect(r - 2, rim, r, floor, STONE);
-    rect(l, floor - 2, r, floor, STONE);
+  // Walls and floor of `wall`, on stone legs down to the ground.
+  function vessel(l, r, rim, floor, wall) {
+    rect(l, rim, l + 2, floor, wall);
+    rect(r - 2, rim, r, floor, wall);
+    rect(l, floor - 2, r, floor, wall);
     for (const x of [l, l + 1, l + 2, r - 2, r - 1, r]) rect(x, floor + 1, x, ground[x] - 1, STONE);
   }
 
-  function basin(l, r) {
+  // A stone basin, or for 'jar' a glass one, holding `fill`.
+  function basin(l, r, fill) {
     const depth = Math.round(between(18, 44) * k);
     const floor = stand(l, r, depth), rim = floor - depth;
-    stoneBox(l, r, rim, floor);
+    const isJar = fill === 'jar';
+    vessel(l, r, rim, floor, isJar ? GLASS : STONE);
     const inL = l + 3, inR = r - 3, inB = floor - 3;
     const brim = rim + Math.round(depth * between(0.1, 0.25));
     const layer = Math.min(inB, brim + Math.max(2, Math.round((inB - brim) * between(0.2, 0.4))));
-    switch ((rnd() * 4) | 0) {
-      case 0: // water under oil
+    switch (fill) {
+      case 'oil': // water under oil
         rect(inL, layer, inR, inB, WATER);
         rect(inL, brim, inR, layer - 1, OIL);
         break;
-      case 1: // water under ice, which slowly freezes it
+      case 'ice': // water under ice, which slowly freezes it
         rect(inL, layer, inR, inB, WATER);
         rect(inL, brim, inR, layer - 1, ICE);
         break;
-      case 2: // a tank of oil
-        rect(inL, brim, inR, inB, OIL);
+      case 'snow': { // the same, with snow lying on the ice
+        const crust = brim + ((layer - brim) >> 1);
+        rect(inL, layer, inR, inB, WATER);
+        rect(inL, crust, inR, layer - 1, ICE);
+        rect(inL, brim, inR, crust - 1, SNOW);
         break;
-      default: { // water with a plant at one end, standing out of it
+      }
+      case 'reeds': { // water with a plant at one end, standing out of it
         const reed = rnd() < 0.5 ? inL : inR - 3;
         rect(inL, layer, inR, inB, WATER);
         rect(reed, brim, reed + 3, inB, PLANT);
+        break;
       }
+      case 'jar': // acid, which can't eat glass
+        rect(inL, brim, inR, inB, ACID);
+        break;
+      default: // a tank of oil
+        rect(inL, brim, inR, inB, OIL);
     }
   }
 
@@ -1183,13 +1236,15 @@ function scene() {
   }
 
   // A stone mound with lava sealed inside, 3 cells from anything on every side.
-  function volcano(l, r) {
+  // A crusted one has an obsidian cap.
+  function volcano(l, r, isCrusted) {
     let base = 0;
     for (let x = l; x <= r; x++) base = Math.min(H - 1, Math.max(base, ground[x] + 2));
     const half = (r - l) >> 1;
     const height = Math.max(7, Math.round(half * between(0.45, 0.8)));
     for (let d = 0; d <= height; d++) {
-      rect(l + d, base - d, r - d, base - d, STONE);
+      const isCap = isCrusted && d > height - 3;
+      rect(l + d, base - d, r - d, base - d, isCap ? OBSIDIAN : STONE);
       const isCore = d >= 3 && d <= height - 3;
       if (isCore) rect(l + d + 3, base - d, r - d - 3, base - d, LAVA);
     }
@@ -1199,21 +1254,48 @@ function scene() {
   function planter(l, r) {
     const depth = Math.round(between(12, 20) * k);
     const floor = stand(l, r, depth), rim = floor - depth;
-    stoneBox(l, r, rim, floor);
+    vessel(l, r, rim, floor, STONE);
     const soil = rim + Math.max(2, Math.round(between(3, 6) * k));
     rect(l + 3, soil, r - 3, floor - 3, SAND);
-    for (let x = l + 3; x <= r - 3; x++) if (rnd() < 0.3) set((soil - 1) * W + x, SEED);
+    for (let x = l + 3; x <= r - 3; x++) if (rnd() < 0.3) place((soil - 1) * W + x, SEED);
   }
 
-  // On the ground, left to right in a random order, while they fit.
-  const pieces = [[basin, 50, 90], [basin, 50, 90], [lake, 70, 110], [volcano, 50, 80], [planter, 35, 60]];
-  let u = between(4, 24);
-  for (const [build, minW, maxW] of shuffle(pieces)) {
-    const w = between(minW, maxW);
-    const isTooWide = u + w > 296;
+  // Pieces on the ground, as [kind, build, min width, max width].
+  const plainBasin = (l, r) => basin(l, r, ['oil', 'ice', 'tank'][(rnd() * 3) | 0]);
+  const pieces = [
+    ['basin', plainBasin, 50, 90], ['basin', plainBasin, 50, 90], ['lake', lake, 70, 110],
+    ['volcano', (l, r) => volcano(l, r, false), 50, 80], ['planter', planter, 35, 60],
+  ];
+  const hintPieces = new Map([
+    [PLANT, ['basin', (l, r) => basin(l, r, 'reeds'), 50, 90]],
+    [SNOW, ['basin', (l, r) => basin(l, r, 'snow'), 50, 90]],
+    [GLASS, ['basin', (l, r) => basin(l, r, 'jar'), 35, 60]],
+    [OBSIDIAN, ['volcano', (l, r) => volcano(l, r, true), 50, 80]],
+  ]);
+
+  // Up to two hints, leaning one, each standing in for a piece of its kind.
+  // Ones not found yet are three times as likely.
+  const hintCount = [0, 1, 1, 1, 2][(rnd() * 5) | 0];
+  const pool = shuffle([...hintPieces.keys()].flatMap(t => Array(isUnfound(t) ? 3 : 1).fill(t)));
+  const hints = [...new Set(pool)].slice(0, hintCount).map(t => hintPieces.get(t));
+  for (const hint of hints) pieces.splice(pieces.findIndex(p => p[0] === hint[0]), 1);
+
+  // Hints are picked first so they always fit; then everything stands left to
+  // right in a random order.
+  const start = between(4, 24);
+  let room = 296 - start;
+  const picked = [];
+  for (const [, build, minW, maxW] of [...hints, ...shuffle(pieces)]) {
+    const w = between(minW, maxW), gap = between(8, 30);
+    const isTooWide = w + gap > room;
     if (isTooWide) continue;
+    picked.push([build, w, gap]);
+    room -= w + gap;
+  }
+  let u = start;
+  for (const [build, w, gap] of shuffle(picked)) {
     build(X(u), X(u + w));
-    u += w + between(8, 30);
+    u += w + gap;
   }
 
   // Ledges to pour things over, up to one in each half of the sky.
